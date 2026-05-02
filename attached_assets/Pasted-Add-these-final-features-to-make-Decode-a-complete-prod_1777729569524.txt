@@ -1,0 +1,69 @@
+Add these final features to make Decode a complete product:
+
+FEATURE 1 — SEO Landing page + proper metadata
+In client/index.html update the <head>:
+<title>Decode — Understand Any Document in Hindi, Bengali & English</title>
+<meta name="description" content="Upload or paste any confusing document — medical report, legal notice, bank letter, government scheme — and get a plain language explanation in Hindi, Bengali or English. Free to use.">
+<meta name="keywords" content="document explainer hindi, medical report explained, legal notice help india, bank letter meaning, decode documents india">
+<meta property="og:title" content="Decode — Understand Any Document in Plain Language">
+<meta property="og:description" content="Free AI tool that explains confusing documents in Hindi, Bengali & English. Medical reports, legal notices, bank letters — understood in 10 seconds.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Decode — Document Explainer for India">
+<meta name="twitter:description" content="Understand any document in Hindi, Bengali or English. Free AI tool for India.">
+
+FEATURE 2 — Email/WhatsApp waitlist capture
+Add a small sticky bottom bar (only shows after user's first decode):
+- Background: #534AB7, white text
+- Text: "Love Decode? Get notified about new features"
+- A phone number input (Indian format)
+- "Notify me" button in white with purple text
+- On submit: save to localStorage "waitlist_numbers" array + show "Thanks! We'll keep you updated 🙏"
+- Small "✕" to dismiss permanently (save dismissed state in localStorage)
+
+Also add a GET /api/waitlist endpoint in backend that returns 
+count of waitlist signups from a simple in-memory array.
+POST /api/waitlist accepts { phone } and adds to array.
+
+FEATURE 3 — Admin dashboard (hidden page)
+Create a hidden admin page at /admin in the frontend.
+Only accessible by typing /admin in the URL.
+No link to it from the main app.
+
+Show these stats (read from backend):
+- Total API calls today (track in server memory, increment on each /api/decode call)
+- Total follow-up questions today
+- Waitlist signups count
+- A live log of last 10 decodes: timestamp, docType, language (no personal data)
+
+In server/index.js add a simple stats tracker object:
+const stats = {
+  decodesToday: 0,
+  followupsToday: 0,
+  lastDecodes: []
+}
+Expose GET /api/admin/stats (no auth for now — it's hidden by URL)
+Increment stats.decodesToday in the decode route.
+Push to stats.lastDecodes (keep last 10 only) on each decode.
+
+Admin page design:
+- Simple dark theme dashboard
+- 3 big number cards: Decodes Today, Follow-ups Today, Waitlist Count
+- A table showing last 10 decodes with timestamp, docType, language
+- Auto-refreshes every 30 seconds
+- Title: "Decode — Admin Dashboard"
+
+FEATURE 4 — Referral system
+Add a referral feature to the result page:
+- After successful decode show: "🎁 Give a friend 1 free extra decode"
+- Generate a referral link: window.location.origin + "?ref=" + btoa(Date.now())
+- "Copy referral link" button that copies to clipboard
+- When someone opens the app with ?ref= in URL:
+  * Check localStorage if this ref was already used
+  * If not: add 1 bonus decode to their daily count (stored as decode_bonus in localStorage)
+  * Show toast: "🎁 You got 1 bonus decode from a friend!"
+  * Mark ref as used in localStorage
+
+In freemium gate logic: daily limit = 3 + decode_bonus value
+
+Restart everything and confirm all features working.

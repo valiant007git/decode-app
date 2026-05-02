@@ -1,5 +1,6 @@
 const express = require('express');
 const Groq = require('groq-sdk');
+const { stats } = require('../stats');
 
 const router = express.Router();
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -12,13 +13,14 @@ router.post('/', async (req, res) => {
 
     const usageCount = parseInt(req.headers['x-usage-count'] || '0', 10);
     const isPaid = req.headers['x-is-paid'] === 'true';
+    const bonus = parseInt(req.headers['x-bonus'] || '0', 10);
+    const effectiveLimit = 3 + bonus;
 
-    if (usageCount >= 3 && !isPaid) {
+    if (usageCount >= effectiveLimit && !isPaid) {
       return res.status(402).json({ error: 'LIMIT_REACHED' });
     }
 
     let userMessage;
-
     if (imageBase64) {
       userMessage = `The user has uploaded an image of a document. Document type is ${docType}. Based on the document type and any text provided, give the best explanation possible. Explain in ${language}.${text ? `\n\nAdditional text from document:\n${text}` : ''}`;
     } else {
@@ -36,6 +38,10 @@ router.post('/', async (req, res) => {
 
     const rawText = response.choices[0].message.content;
     const parsed = JSON.parse(rawText);
+
+    stats.decodesToday++;
+    stats.lastDecodes.unshift({ timestamp: new Date().toISOString(), docType, language });
+    if (stats.lastDecodes.length > 10) stats.lastDecodes.pop();
 
     return res.json({
       success: true,
@@ -64,6 +70,7 @@ router.post('/followup', async (req, res) => {
       ],
       max_tokens: 512,
     });
+    stats.followupsToday++;
     return res.json({ success: true, answer: response.choices[0].message.content });
   } catch (err) {
     console.error('Followup error:', err);
