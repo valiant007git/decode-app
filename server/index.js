@@ -46,6 +46,13 @@ app.get('/api/admin/stats', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Decode server running on port ${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`Port ${PORT} busy, trying ${PORT + 1}`);
+    app.listen(PORT + 1);
+  }
 });
