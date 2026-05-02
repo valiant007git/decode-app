@@ -1,10 +1,10 @@
 const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 
 const router = express.Router();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const SYSTEM_PROMPT = `You are Decode — a calm, warm AI that helps everyday people in India understand confusing documents. You MUST respond with ONLY valid JSON, no markdown, no extra text. Format: { "what_is_this": "2-3 sentences on what kind of document this is", "what_it_means_for_you": "the single most important thing the user needs to know in plain simple language", "what_to_do_next": ["action step 1", "action step 2", "action step 3"] }. Respond in the user's chosen language. Use simple, everyday words. Avoid jargon. Be warm and reassuring.`;
+const SYSTEM_PROMPT = `You are Decode — a calm, warm AI that helps everyday people in India understand confusing documents. You MUST respond with ONLY valid JSON, no markdown, no extra text. The JSON keys must ALWAYS be in English exactly as shown — never translate them. Only the values should be in the user's chosen language. Format: { "what_is_this": "2-3 sentences on what kind of document this is", "what_it_means_for_you": "the single most important thing the user needs to know in plain simple language", "what_to_do_next": ["action step 1", "action step 2", "action step 3"] }. Use simple, everyday words. Avoid jargon. Be warm and reassuring.`;
 
 router.post('/', async (req, res) => {
   try {
@@ -17,35 +17,35 @@ router.post('/', async (req, res) => {
       return res.status(402).json({ error: 'LIMIT_REACHED' });
     }
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: SYSTEM_PROMPT,
-    });
-
-    let parts;
+    let userMessage;
 
     if (imageBase64) {
-      parts = [
+      userMessage = [
         {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: imageBase64,
+          type: 'image_url',
+          image_url: {
+            url: `data:image/jpeg;base64,${imageBase64}`,
           },
         },
         {
+          type: 'text',
           text: `Document type: ${docType}. Explain in ${language}.`,
         },
       ];
     } else {
-      parts = [
-        {
-          text: `Document type: ${docType}. Explain in ${language}.\n\nContent:\n${text}`,
-        },
-      ];
+      userMessage = `Document type: ${docType}. Explain in ${language}.\n\nContent:\n${text}`;
     }
 
-    const result = await model.generateContent(parts);
-    const rawText = result.response.text();
+    const response = await client.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 1024,
+    });
+
+    const rawText = response.choices[0].message.content;
     const parsed = JSON.parse(rawText);
 
     return res.json({
