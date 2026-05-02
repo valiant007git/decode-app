@@ -1,0 +1,66 @@
+Final polish round — make Decode launch-ready:
+
+FIX 1 — Mobile optimization
+Make sure everything works perfectly on mobile:
+- All buttons minimum 48px height (touch friendly)
+- Font size minimum 14px everywhere
+- Image upload box: add capture="environment" to file input 
+  so mobile opens camera directly
+- Follow-up chat input: prevent page zoom on focus 
+  (add font-size: 16px to input)
+- Pricing cards on upgrade page: stack vertically on mobile 
+  (not side by side)
+- History panel: full screen on mobile
+
+FIX 2 — Error handling improvements
+Add friendly error messages everywhere:
+- If AI takes too long (>15 seconds): show "Taking longer than usual... 
+  please wait" 
+- If network is offline: show "No internet connection. 
+  Please check your connection and try again."
+- If decode fails 3 times: show "Our AI is busy right now. 
+  Try again in a few minutes."
+- Add a retry button on all error states
+
+FIX 3 — Loading skeleton
+Instead of just showing "Decoding..." on the button,
+show a loading skeleton where the result cards will appear:
+- 3 placeholder cards with animated grey shimmer effect
+- Appears immediately when Decode button is clicked
+- Replaced by real content when AI responds
+
+FIX 4 — Copy result button
+Add a "📋 Copy result" button on the result page.
+On click: copies all 3 sections as formatted text:
+"WHAT IS THIS?
+{what_is_this}
+
+WHAT IT MEANS FOR YOU:
+{what_it_means_for_you}
+
+WHAT TO DO NEXT:
+1. {step1}
+2. {step2}
+3. {step3}
+
+Decoded by Decode — decode.app"
+
+FIX 5 — Onboarding tooltip
+First time a user opens the app (check localStorage 
+"seen_onboarding"):
+Show a simple 3-step tooltip sequence:
+- Step 1: Highlight the example chips with pulse animation 
+  + tooltip "Try an example to see how Decode works"
+- Step 2: Highlight language selector 
+  + tooltip "Choose your preferred language"  
+- Step 3: Highlight Decode button 
+  + tooltip "Click to get your plain language explanation"
+Small "Skip" button to dismiss.
+Save "seen_onboarding: true" after completion or skip.
+
+FIX 6 — Page title updates dynamically
+After a decode completes, update browser tab title to:
+"✓ Decoded — [docType] | Decode"
+When back on home: "Decode — Understand Any Document"
+
+Restart and confirm all fixes applied.
