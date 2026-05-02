@@ -22,7 +22,7 @@ function incrementUsage() {
   localStorage.setItem(key, String(next));
   return next;
 }
-function getIsPaid() { return localStorage.getItem('isPaid') === 'true'; }
+function getIsPaid() { return localStorage.getItem('decode_is_paid') === 'true'; }
 
 const CARD_COLORS = {
   what_is_this: '#3B82F6',
@@ -68,6 +68,25 @@ function UpgradeScreen({ onSuccess, onBack }) {
     setPhoneError('');
     setPaying(true);
 
+    // Step 1 — get key from backend
+    let keyId;
+    try {
+      const res = await fetch('/api/payment/razorpay-key');
+      const data = await res.json();
+      keyId = data.key_id;
+    } catch {
+      alert('Could not reach payment server. Please try again.');
+      setPaying(false);
+      return;
+    }
+
+    if (!keyId) {
+      alert('Payment is not configured yet. Please try again later.');
+      setPaying(false);
+      return;
+    }
+
+    // Step 2 — load Razorpay script
     const loaded = await loadRazorpayScript();
     if (!loaded) {
       alert('Could not load payment gateway. Please try again.');
@@ -75,32 +94,17 @@ function UpgradeScreen({ onSuccess, onBack }) {
       return;
     }
 
-    let orderData;
-    try {
-      const res = await fetch('/api/payment/create-order', { method: 'POST' });
-      orderData = await res.json();
-    } catch {
-      alert('Could not create order. Please try again.');
-      setPaying(false);
-      return;
-    }
-
-    if (!orderData.success) {
-      alert('Payment setup failed. Please try again.');
-      setPaying(false);
-      return;
-    }
-
+    // Step 3 — open Razorpay modal
     const options = {
-      key: orderData.key_id,
+      key: keyId,
       amount: 19900,
       currency: 'INR',
       name: 'Decode',
-      description: 'Pro Monthly Subscription',
-      order_id: orderData.order.id,
-      theme: { color: ACCENT },
+      description: 'Pro Monthly - Unlimited Decodes',
+      theme: { color: '#534AB7' },
       prefill: { contact: phone },
       handler: async function (response) {
+        // Step 4 — on payment success
         try {
           await fetch('/api/payment/verify', {
             method: 'POST',
@@ -112,10 +116,10 @@ function UpgradeScreen({ onSuccess, onBack }) {
           });
         } catch { /* best-effort */ }
 
-        localStorage.setItem('isPaid', 'true');
-        localStorage.setItem(getTodayKey(), '0');
-        setProMsg('🎉 You\'re now a Pro member! Enjoy unlimited decodes.');
-        setTimeout(() => onSuccess(), 2000);
+        localStorage.setItem('decode_is_paid', 'true');
+        localStorage.setItem('decode_count', '0');
+        alert('Welcome to Decode Pro! Unlimited decodes unlocked.');
+        window.location.reload();
       },
       modal: { ondismiss: () => setPaying(false) },
     };

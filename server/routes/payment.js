@@ -3,6 +3,10 @@ const router = express.Router();
 
 const paidUsers = new Set();
 
+router.get('/razorpay-key', (req, res) => {
+  res.json({ key_id: process.env.RAZORPAY_KEY_ID });
+});
+
 router.post('/create-order', async (req, res) => {
   try {
     const Razorpay = require('razorpay');
