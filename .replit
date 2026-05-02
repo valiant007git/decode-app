@@ -76,5 +76,5 @@ externalPort = 80
 
 [userenv.shared]
 Gemini_API_Key = "AIzaSyCcY7s7BBtlzM-kg69tLN4ZbSjQBRJDMAA"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "REMOVED"
 RAZORPAY_KEY_ID = "rzp_test_SkVnHZx1iD47Lv"
