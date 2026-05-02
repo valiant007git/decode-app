@@ -491,6 +491,10 @@ export default function App() {
   const [imageBase64, setImageBase64] = useState('');
   const [imagePreview, setImagePreview] = useState('');
   const [imageFileName, setImageFileName] = useState('');
+  const [pdfBase64, setPdfBase64] = useState('');
+  const [pdfFileName, setPdfFileName] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [complexity, setComplexity] = useState(null);
   const [loading, setLoading] = useState(false);
   const [slowWarning, setSlowWarning] = useState(false);
   const [result, setResult] = useState(null);
@@ -516,6 +520,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const fileInputRef = useRef(null);
+  const pdfFileRef = useRef(null);
   const slowTimerRef = useRef(null);
   const chatEndRef = useRef(null);
 
@@ -566,18 +571,36 @@ export default function App() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
+  function handlePdfChange(e) {
+    const file = e.target.files[0]; if (!file) return;
+    setPdfFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = ev => setPdfBase64(ev.target.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemovePdf() {
+    setPdfBase64(''); setPdfFileName('');
+    if (pdfFileRef.current) pdfFileRef.current.value = '';
+  }
+
   async function handleDecode() {
-    if (!imageBase64 && !text.trim()) { triggerError('Please paste text or upload a document image.'); return; }
+    if (!imageBase64 && !pdfBase64 && !text.trim()) { triggerError('Please paste text, upload an image, or upload a PDF.'); return; }
     if (!navigator.onLine) { triggerError('No internet connection. Please check your connection and try again.'); return; }
     const count = getUsageCount();
     if (count >= getDailyLimit() && !isPaid) { setLimitReached(true); setShowUpgrade(true); return; }
-    setLoading(true); setError(''); setResult(null); setSlowWarning(false);
+    setLoading(true); setError(''); setResult(null); setSlowWarning(false); setComplexity(null);
     slowTimerRef.current = setTimeout(()=>setSlowWarning(true), 15000);
     try {
-      const res = await fetch('https://decode-app-5ko9.onrender.com/api/decode',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-usage-count':String(count),'x-is-paid':String(isPaid),'x-bonus':String(getBonus())},
-        body:JSON.stringify({text,imageBase64,language,docType}),
+      const isPdf = !!pdfBase64;
+      const endpoint = isPdf ? '/api/decode/pdf' : '/api/decode';
+      const body = isPdf
+        ? JSON.stringify({ pdfBase64, language, docType })
+        : JSON.stringify({ text, imageBase64, language, docType });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-usage-count':String(count), 'x-is-paid':String(isPaid), 'x-bonus':String(getBonus()) },
+        body,
       });
       clearTimeout(slowTimerRef.current);
       if (res.status===402) { setLimitReached(true); setShowUpgrade(true); setLoading(false); return; }
@@ -585,9 +608,10 @@ export default function App() {
       if (!data.success) { const nf=failCount+1; setFailCount(nf); triggerError(nf>=3?'Our AI is busy right now. Try again in a few minutes.':(data.error||'Something went wrong.')); setLoading(false); return; }
       setFailCount(0);
       if (!isPaid) { const nc=incrementUsage(); setUsageCount(nc); if(nc>=getDailyLimit()) setLimitReached(true); }
-      const preview = text.trim().slice(0,60)+(text.trim().length>60?'...':'');
-      saveToHistory({id:Date.now(),docType,language,preview:preview||`[Image] ${docType}`,result:data.result});
+      const preview = text.trim().slice(0,60)+(text.trim().length>60?'...':'') || (pdfBase64?`[PDF] ${docType}`:`[Image] ${docType}`);
+      saveToHistory({id:Date.now(),docType,language,preview,result:data.result});
       setResult(data.result);
+      if (data.result.complexity) setComplexity(data.result.complexity);
       setReferralLink(window.location.origin+'?ref='+btoa(String(Date.now())));
       if (!localStorage.getItem('waitlist_dismissed')) setShowWaitlist(true);
     } catch {
@@ -605,7 +629,9 @@ export default function App() {
   function handleReset() {
     clearTimeout(slowTimerRef.current);
     setResult(null); setError(''); setText(''); setImageBase64(''); setImagePreview(''); setImageFileName('');
+    setPdfBase64(''); setPdfFileName(''); setComplexity(null);
     if (fileInputRef.current) fileInputRef.current.value='';
+    if (pdfFileRef.current) pdfFileRef.current.value='';
     const paid=getIsPaid(); setIsPaid(paid);
     setLimitReached(getUsageCount()>=getDailyLimit()&&!paid);
     setShowUpgrade(false); setFollowups([]); setFollowupQ('');
@@ -772,10 +798,39 @@ export default function App() {
               )}
             </div>
 
+            {/* PDF upload */}
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>Upload PDF</label>
+              <input ref={pdfFileRef} type="file" accept="application/pdf,.pdf" onChange={handlePdfChange} style={{ display:'none' }} />
+              {!pdfFileName ? (
+                <div onClick={()=>pdfFileRef.current?.click()} style={{ border:`2px dashed #C4BFFF`, borderRadius:R.card, padding:'18px 16px', textAlign:'center', cursor:'pointer', background:C.bg, transition:'all 0.18s', display:'flex', alignItems:'center', justifyContent:'center', gap:12 }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=C.surface2;e.currentTarget.style.borderColor=C.primary;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=C.bg;e.currentTarget.style.borderColor='#C4BFFF';}}>
+                  <span style={{ fontSize:24 }}>📄</span>
+                  <div style={{ textAlign:'left' }}>
+                    <p style={{ fontSize:14, color:C.textSecondary, margin:'0 0 2px' }}>Upload a PDF document</p>
+                    <p style={{ fontSize:12, color:C.textMuted, margin:0 }}>Bank letters, legal notices, medical reports</p>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', alignItems:'center', gap:12, background:C.surface2, borderRadius:12, padding:'12px 14px', border:`1.5px solid ${C.success}33` }}>
+                  <span style={{ fontSize:28, flexShrink:0 }}>📄</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:C.text, display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                      <span style={{ color:C.success }}>✓</span>
+                      <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pdfFileName}</span>
+                    </div>
+                    <p style={{ fontSize:12, color:C.textMuted, margin:0 }}>PDF ready to decode</p>
+                  </div>
+                  <button className="btn-press" onClick={handleRemovePdf} style={{ background:C.danger, color:'#fff', border:'none', borderRadius:R.pill, padding:'5px 12px', fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0 }}>✕ Remove</button>
+                </div>
+              )}
+            </div>
+
             {/* Textarea */}
             <div style={{ marginBottom:16 }}>
               <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>
-                Document text{imageBase64&&<span style={{ fontWeight:400, color:C.textMuted }}> (optional)</span>}
+                Document text{(imageBase64||pdfBase64)&&<span style={{ fontWeight:400, color:C.textMuted }}> (optional)</span>}
               </label>
               <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={PLACEHOLDERS[placeholderIdx]} rows={5}
                 style={{ width:'100%', minHeight:120, padding:'14px 16px', borderRadius:R.input, border:`1.5px solid ${C.border}`, fontSize:15, color:C.text, lineHeight:1.6, resize:'vertical', outline:'none', fontFamily:FONT, transition:'border-color 0.18s, box-shadow 0.18s', background:C.surface }}
@@ -868,6 +923,22 @@ export default function App() {
         ) : (
           /* ─── Result Section ─── */
           <div>
+            {/* Complexity badge */}
+            {complexity && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, animation:'fadeInUp 0.3s ease both' }}>
+                <span style={{ fontSize:13, color:C.textSecondary }}>Document complexity</span>
+                <span style={{
+                  fontSize:12, fontWeight:700, padding:'5px 14px', borderRadius:R.pill,
+                  background: complexity==='simple'?'#D1FAE5':complexity==='moderate'?'#FEF3C7':'#FEE2E2',
+                  color: complexity==='simple'?'#065F46':complexity==='moderate'?'#92400E':'#991B1B',
+                }}>
+                  {complexity==='simple' && '✓ Simple'}
+                  {complexity==='moderate' && '⚡ Moderate'}
+                  {complexity==='complex' && '⚠ Complex — consider professional advice'}
+                </span>
+              </div>
+            )}
+
             {/* Result cards */}
             {[
               {key:'what_is_this',label:'WHAT IS THIS?',color:CARD_COLORS.what_is_this,delay:'0ms'},
