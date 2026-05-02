@@ -1,33 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const pdfParse = require('pdf-parse');
 
 router.post('/', async (req, res) => {
   try {
+    const pdfParse = require('pdf-parse');
     const { pdfBase64 } = req.body;
-
-    if (!pdfBase64) {
-      return res.status(400).json({ success: false, error: 'No PDF provided.' });
-    }
-
     const buffer = Buffer.from(pdfBase64, 'base64');
     const data = await pdfParse(buffer);
-    const extractedText = data.text.slice(0, 3000);
-
-    if (!extractedText.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Could not read PDF. Please try copying the text manually.',
-      });
+    const text = data.text.slice(0, 4000).trim();
+    if (!text) {
+      return res.status(400).json({ success: false, error: 'Could not extract text from this PDF.' });
     }
-
-    res.json({ success: true, text: extractedText });
+    res.json({ success: true, text });
   } catch (err) {
-    console.error('PDF parse error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Could not read this PDF. Please copy the text and paste it instead.',
-    });
+    console.error('PDF error:', err);
+    res.status(500).json({ success: false, error: 'PDF read failed.' });
   }
 });
 
