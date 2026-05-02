@@ -20,18 +20,7 @@ router.post('/', async (req, res) => {
     let userMessage;
 
     if (imageBase64) {
-      userMessage = [
-        {
-          type: 'image_url',
-          image_url: {
-            url: `data:image/jpeg;base64,${imageBase64}`,
-          },
-        },
-        {
-          type: 'text',
-          text: `Document type: ${docType}. Explain in ${language}.`,
-        },
-      ];
+      userMessage = `The user has uploaded an image of a document. Document type is ${docType}. Based on the document type and any text provided, give the best explanation possible. Explain in ${language}.${text ? `\n\nAdditional text from document:\n${text}` : ''}`;
     } else {
       userMessage = `Document type: ${docType}. Explain in ${language}.\n\nContent:\n${text}`;
     }

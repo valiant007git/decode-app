@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const ACCENT = '#534AB7';
 const ACCENT_DARK = '#3f38a0';
@@ -34,11 +34,14 @@ export default function App() {
   const [language, setLanguage] = useState('English');
   const [docType, setDocType] = useState('Medical report');
   const [text, setText] = useState('');
+  const [imageBase64, setImageBase64] = useState('');
+  const [imagePreview, setImagePreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [usageCount, setUsageCount] = useState(getUsageCount());
   const [limitReached, setLimitReached] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const count = getUsageCount();
@@ -46,9 +49,29 @@ export default function App() {
     if (count >= DAILY_LIMIT) setLimitReached(true);
   }, []);
 
+  function handleImageChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      setImagePreview(dataUrl);
+      const base64 = dataUrl.split(',')[1];
+      setImageBase64(base64);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemoveImage() {
+    setImageBase64('');
+    setImagePreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   async function handleDecode() {
-    if (!text.trim()) {
-      setError('Please paste some text to decode.');
+    if (!imageBase64 && !text.trim()) {
+      setError('Please paste text or upload a document image.');
       return;
     }
 
@@ -70,7 +93,7 @@ export default function App() {
           'x-usage-count': String(currentCount),
           'x-is-paid': 'false',
         },
-        body: JSON.stringify({ text, language, docType }),
+        body: JSON.stringify({ text, imageBase64, language, docType }),
       });
 
       if (res.status === 402) {
@@ -102,8 +125,13 @@ export default function App() {
     setResult(null);
     setError('');
     setText('');
+    setImageBase64('');
+    setImagePreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setLimitReached(getUsageCount() >= DAILY_LIMIT);
   }
+
+  const loadingMessage = imageBase64 ? 'Reading your document...' : 'Decoding...';
 
   return (
     <div style={{
@@ -213,16 +241,94 @@ export default function App() {
               </select>
             </div>
 
+            {/* Image upload */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>
+                Upload document image
+              </label>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageChange}
+                style={{ display: 'none' }}
+              />
+
+              {!imagePreview ? (
+                <div
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  style={{
+                    border: `2px dashed #c9c4e8`,
+                    borderRadius: 12,
+                    padding: '22px 16px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: '#faf9ff',
+                    transition: 'border-color 0.15s, background-color 0.15s',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = ACCENT;
+                    e.currentTarget.style.backgroundColor = '#f0eeff';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = '#c9c4e8';
+                    e.currentTarget.style.backgroundColor = '#faf9ff';
+                  }}
+                >
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📷</div>
+                  <p style={{ margin: 0, fontSize: 14, color: '#666', lineHeight: 1.5 }}>
+                    Take a photo or upload document image
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: '#aaa' }}>
+                    JPG, PNG, HEIC — any image format
+                  </p>
+                </div>
+              ) : (
+                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `2px solid ${ACCENT}` }}>
+                  <img
+                    src={imagePreview}
+                    alt="Document preview"
+                    style={{
+                      width: '100%',
+                      maxHeight: 200,
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                  <button
+                    onClick={handleRemoveImage}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 20,
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Textarea */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>
-                Document text
+                Document text {imageBase64 && <span style={{ fontWeight: 400, color: '#aaa' }}>(optional if image uploaded)</span>}
               </label>
               <textarea
                 value={text}
                 onChange={e => setText(e.target.value)}
                 placeholder="Paste confusing text here..."
-                rows={7}
+                rows={5}
                 style={{
                   width: '100%',
                   padding: '12px 14px',
@@ -329,7 +435,7 @@ export default function App() {
                   onMouseEnter={e => { if (!loading) e.target.style.backgroundColor = ACCENT_DARK; }}
                   onMouseLeave={e => { if (!loading) e.target.style.backgroundColor = ACCENT; }}
                 >
-                  {loading ? 'Decoding...' : 'Decode it'}
+                  {loading ? loadingMessage : 'Decode it'}
                 </button>
               </>
             )}
