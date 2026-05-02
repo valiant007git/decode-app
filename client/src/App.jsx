@@ -485,6 +485,14 @@ function WaitlistBar({ onDismiss }) {
 export default function App() {
   if (window.location.pathname === '/admin') return <AdminPage />;
 
+  const [serverConnecting, setServerConnecting] = useState(true);
+
+  useEffect(() => {
+    fetch('https://decode-app-5ko9.onrender.com/health').catch(() => {});
+    const t = setTimeout(() => setServerConnecting(false), 30000);
+    return () => clearTimeout(t);
+  }, []);
+
   const [language, setLanguage] = useState('English');
   const [docType, setDocType] = useState('Medical report');
   const [text, setText] = useState('');
@@ -733,6 +741,14 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* Server wake-up banner */}
+      {serverConnecting && (
+        <div style={{ background:'#FEF3C7', borderBottom:'1px solid #FDE68A', padding:'8px 20px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          <Spinner size={13} color="#92400E" />
+          <span style={{ fontSize:13, color:'#92400E', fontWeight:500 }}>Connecting to server... first load may take up to 30 seconds</span>
+        </div>
+      )}
 
       {/* Main */}
       <main style={{ maxWidth:520, margin:'0 auto', padding:'20px 16px 32px' }}>
