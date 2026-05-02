@@ -14,9 +14,8 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', app: 'Decode', version: '1.0.0' });
 });
 
-app.post('/api/decode', (req, res) => {
-  res.json({ message: 'AI route coming in step 2' });
-});
+const decodeRouter = require('./routes/decode');
+app.use('/api/decode', decodeRouter);
 
 app.listen(PORT, () => {
   console.log(`Decode server running on port ${PORT}`);
