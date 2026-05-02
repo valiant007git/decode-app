@@ -21,6 +21,7 @@ const C = {
 const GRAD = `linear-gradient(135deg, ${C.primary}, #6C63D5)`;
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const R = { card: 16, input: 12, pill: 50 };
+const IS_DEV = new URLSearchParams(window.location.search).get('dev') === 'true';
 
 /* ─── Constants ─── */
 const LANGUAGES = ['English', 'Hindi', 'Bengali'];
@@ -128,6 +129,101 @@ function OnboardingTooltip({ step, onNext, onSkip }) {
         {step < 2 ? 'Next →' : 'Got it!'}
       </button>
     </div>
+  );
+}
+
+/* ─── Dev Toolbar ─── */
+function DevToolbar({ onRefreshState, onShowUpgrade, onSetText, onSetLanguage }) {
+  const [open, setOpen] = useState(false);
+  const [toast, setToast] = useState('');
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2800);
+  }
+
+  function devBtn(label, color, action) {
+    return (
+      <button className="btn-press" onClick={() => { action(); setOpen(false); }}
+        style={{ width:'100%', padding:'10px 14px', background:color, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:FONT }}>
+        {label}
+      </button>
+    );
+  }
+
+  const actions = {
+    resetCount() {
+      localStorage.setItem(getTodayKey(), '0');
+      onRefreshState();
+      showToast('Count reset!');
+    },
+    setPaid() {
+      localStorage.setItem('decode_is_paid', 'true');
+      onRefreshState();
+      showToast('Pro unlocked!');
+    },
+    setFree() {
+      localStorage.setItem('decode_is_paid', 'false');
+      localStorage.setItem(getTodayKey(), '0');
+      onRefreshState();
+      showToast('Reset to free!');
+    },
+    clearAll() {
+      localStorage.clear();
+      onRefreshState();
+      showToast('All cleared!');
+    },
+    fillTest() {
+      onSetText('Your haemoglobin is 9.2 g/dL. Normal range is 12-16 g/dL. Suggests mild anaemia.');
+      onSetLanguage('Hindi');
+      showToast('Test text filled!');
+    },
+    addHistory() {
+      const fake = [
+        { id: Date.now() - 1000, docType: 'Medical report', language: 'Hindi', preview: 'Haemoglobin 9.2 g/dL, below normal range...', result: { what_is_this: 'A blood test result showing low haemoglobin levels.', what_it_means_for_you: 'You may have mild anaemia. This can cause tiredness.', what_to_do_next: ['See a doctor soon', 'Eat iron-rich foods like spinach', 'Get a follow-up test in 4 weeks'] } },
+        { id: Date.now() - 60000, docType: 'Legal notice', language: 'English', preview: 'You are required to vacate the premises within 30 days...', result: { what_is_this: 'A legal eviction notice from your landlord.', what_it_means_for_you: 'You have 30 days to leave or respond legally.', what_to_do_next: ['Consult a lawyer immediately', 'Do not ignore this notice', 'Reply in writing within 15 days'] } },
+        { id: Date.now() - 3600000, docType: 'Bank document', language: 'Bengali', preview: 'EMI bounced, NACH mandate rejected by bank...', result: { what_is_this: 'A bank notice about a failed automatic payment.', what_it_means_for_you: 'Your loan EMI was not deducted. A penalty may apply.', what_to_do_next: ['Call your bank today', 'Ensure your account has enough balance', 'Re-register the NACH mandate'] } },
+      ];
+      const existing = getHistory();
+      localStorage.setItem('decode_history', JSON.stringify([...fake, ...existing].slice(0, 200)));
+      onRefreshState();
+      showToast('3 fake entries added!');
+    },
+    showUpgrade() {
+      onShowUpgrade();
+      showToast('Upgrade shown!');
+    },
+  };
+
+  return (
+    <>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position:'fixed', bottom: open ? 230 : 72, left:16, background:'#1A1A2E', color:'#fff', padding:'10px 16px', borderRadius:10, fontSize:13, fontWeight:600, zIndex:9999, boxShadow:'0 4px 20px rgba(0,0,0,0.35)', animation:'fadeInUp 0.25s ease both', transition:'bottom 0.2s', whiteSpace:'nowrap' }}>
+          ✓ {toast}
+        </div>
+      )}
+
+      {/* Expanded panel */}
+      {open && (
+        <div style={{ position:'fixed', bottom:60, left:16, width:220, background:'#1A1A2E', borderRadius:16, padding:14, zIndex:9998, boxShadow:'0 8px 40px rgba(0,0,0,0.5)', animation:'fadeInUp 0.2s ease both', display:'flex', flexDirection:'column', gap:7 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>Dev Tools</div>
+          {devBtn('↺ Reset Count', '#EA580C', actions.resetCount)}
+          {devBtn('✓ Set Paid (Pro)', '#16A34A', actions.setPaid)}
+          {devBtn('✕ Set Free', '#DC2626', actions.setFree)}
+          {devBtn('⚡ Fill Test Text', '#2563EB', actions.fillTest)}
+          {devBtn('＋ Add History', '#7C3AED', actions.addHistory)}
+          {devBtn('👑 Show Upgrade', '#D97706', actions.showUpgrade)}
+          {devBtn('🗑 Clear All localStorage', '#DC2626', actions.clearAll)}
+        </div>
+      )}
+
+      {/* Pill trigger */}
+      <button className="btn-press" onClick={() => setOpen(o => !o)}
+        style={{ position:'fixed', bottom:16, left:16, background:'#1A1A2E', color:'#fff', border:'2px solid #DC2626', borderRadius:R.pill, padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', zIndex:9998, boxShadow:'0 4px 20px rgba(0,0,0,0.4)', fontFamily:FONT, display:'flex', alignItems:'center', gap:6, letterSpacing:'0.02em' }}>
+        🛠 Dev {open ? '▲' : '▼'}
+      </button>
+    </>
   );
 }
 
@@ -551,6 +647,12 @@ export default function App() {
     navigator.clipboard.writeText(referralLink).then(()=>{setReferralCopied(true);setTimeout(()=>setReferralCopied(false),2500);});
   }
 
+  function devRefresh() {
+    const paid = getIsPaid(); setIsPaid(paid);
+    const count = getUsageCount(); setUsageCount(count);
+    setLimitReached(count >= getDailyLimit() && !paid);
+  }
+
   function advanceOnboarding() {
     if (onboardingStep>=2) { localStorage.setItem('seen_onboarding','true'); setOnboardingStep(null); }
     else setOnboardingStep(s=>s+1);
@@ -591,6 +693,9 @@ export default function App() {
       <header style={{ position:'sticky', top:0, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(12px)', borderBottom:`1px solid ${C.border}`, height:56, display:'flex', alignItems:'center', padding:'0 20px', zIndex:100, boxShadow:'0 1px 12px rgba(83,74,183,0.08)' }}>
         <span style={{ fontSize:20, marginRight:8 }}>🔍</span>
         <span style={{ fontSize:18, fontWeight:700, color:C.text }}>Decode</span>
+        {IS_DEV && (
+          <span style={{ marginLeft:8, background:'#DC2626', color:'#fff', fontSize:10, fontWeight:800, padding:'2px 7px', borderRadius:6, letterSpacing:'0.06em', verticalAlign:'middle' }}>DEV</span>
+        )}
         <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
           {isPaid && <span style={{ background:C.surface2, color:C.primary, fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:R.pill }}>PRO</span>}
           {!isPaid && (
@@ -844,6 +949,16 @@ export default function App() {
 
       {/* Waitlist bar */}
       {showWaitlist && !showHistory && !showUpgrade && !loading && <WaitlistBar onDismiss={()=>{localStorage.setItem('waitlist_dismissed','true');setShowWaitlist(false);}} />}
+
+      {/* Dev toolbar */}
+      {IS_DEV && (
+        <DevToolbar
+          onRefreshState={devRefresh}
+          onShowUpgrade={() => setShowUpgrade(true)}
+          onSetText={setText}
+          onSetLanguage={setLanguage}
+        />
+      )}
 
       {/* Mobile bottom nav */}
       {isMobile && (
