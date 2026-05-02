@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const decodeRoute = require('./routes/decode');
 const paymentRoute = require('./routes/payment');
+const pdfRoute = require('./routes/pdf');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,6 +14,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use('/api/decode', decodeRoute);
 app.use('/api/payment', paymentRoute);
+app.use('/api/pdf', pdfRoute);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', app: 'Decode', version: '1.0.0' }));
 

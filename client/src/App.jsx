@@ -507,6 +507,7 @@ export default function App() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [complexity, setComplexity] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('Decoding...');
   const [slowWarning, setSlowWarning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -603,15 +604,31 @@ export default function App() {
     setLoading(true); setError(''); setResult(null); setSlowWarning(false); setComplexity(null);
     slowTimerRef.current = setTimeout(()=>setSlowWarning(true), 15000);
     try {
-      const isPdf = !!pdfBase64;
-      const endpoint = isPdf ? `${API_BASE}/api/decode/pdf` : `${API_BASE}/api/decode`;
-      const body = isPdf
-        ? JSON.stringify({ pdfBase64, language, docType })
-        : JSON.stringify({ text, imageBase64, language, docType });
-      const res = await fetch(endpoint, {
+      let decodeText = text;
+      let decodeImage = imageBase64;
+
+      if (pdfBase64) {
+        setLoadingMsg('Reading PDF...');
+        const pdfRes = await fetch(`${API_BASE}/api/pdf`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdfBase64 }),
+        });
+        const pdfData = await pdfRes.json();
+        if (!pdfData.success) {
+          triggerError(pdfData.error || 'Could not read PDF. Please copy the text and paste it instead.');
+          setLoading(false);
+          return;
+        }
+        decodeText = pdfData.text;
+        decodeImage = '';
+      }
+
+      setLoadingMsg('Decoding...');
+      const res = await fetch(`${API_BASE}/api/decode`, {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'x-usage-count':String(count), 'x-is-paid':String(isPaid), 'x-bonus':String(getBonus()) },
-        body,
+        body: JSON.stringify({ text: decodeText, imageBase64: decodeImage, language, docType }),
       });
       clearTimeout(slowTimerRef.current);
       if (res.status===402) { setLimitReached(true); setShowUpgrade(true); setLoading(false); return; }
@@ -619,7 +636,7 @@ export default function App() {
       if (!data.success) { const nf=failCount+1; setFailCount(nf); triggerError(nf>=3?'Our AI is busy right now. Try again in a few minutes.':(data.error||'Something went wrong.')); setLoading(false); return; }
       setFailCount(0);
       if (!isPaid) { const nc=incrementUsage(); setUsageCount(nc); if(nc>=getDailyLimit()) setLimitReached(true); }
-      const preview = text.trim().slice(0,60)+(text.trim().length>60?'...':'') || (pdfBase64?`[PDF] ${docType}`:`[Image] ${docType}`);
+      const preview = decodeText.trim().slice(0,60)+(decodeText.trim().length>60?'...':'') || (pdfBase64?`[PDF] ${docType}`:`[Image] ${docType}`);
       saveToHistory({id:Date.now(),docType,language,preview,result:data.result});
       setResult(data.result);
       if (data.result.complexity) setComplexity(data.result.complexity);
@@ -897,16 +914,16 @@ export default function App() {
                   </div>
                 )}
                 <div style={ringOf('button')}>
-                  <button className="btn-press" onClick={handleDecode} style={{
-                    width:'100%', height:52, background:GRAD, color:'#fff', border:'none', borderRadius:14,
-                    fontSize:16, fontWeight:600, cursor:'pointer',
+                  <button className="btn-press" onClick={handleDecode} disabled={loading} style={{
+                    width:'100%', height:52, background:loading?'#9992d4':GRAD, color:'#fff', border:'none', borderRadius:14,
+                    fontSize:16, fontWeight:600, cursor:loading?'not-allowed':'pointer',
                     boxShadow:`0 4px 20px ${C.primaryShadow}`, transition:'all 0.18s',
                     display:'flex', alignItems:'center', justifyContent:'center', gap:10,
                   }}
-                    onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-1px)';e.currentTarget.style.boxShadow=`0 6px 28px ${C.primaryShadow}`;}}
+                    onMouseEnter={e=>{if(!loading){e.currentTarget.style.transform='translateY(-1px)';e.currentTarget.style.boxShadow=`0 6px 28px ${C.primaryShadow}`;}}}
                     onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow=`0 4px 20px ${C.primaryShadow}`;}}
                   >
-                    Decode it
+                    {loading ? loadingMsg : 'Decode it'}
                   </button>
                 </div>
               </>
