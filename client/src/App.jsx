@@ -13,6 +13,12 @@ const EXAMPLES = [
   'Legal notice: vacate premises within 30 days',
   'EMI bounced, NACH mandate rejected by bank',
 ];
+const PLACEHOLDERS = [
+  'Paste your medical report here...',
+  'Paste a legal notice here...',
+  'Paste a bank letter here...',
+  'Paste a government document here...',
+];
 
 function getTodayKey() { return 'decode_count_' + new Date().toISOString().slice(0, 10); }
 function getUsageCount() { return parseInt(localStorage.getItem(getTodayKey()) || '0', 10); }
@@ -23,6 +29,24 @@ function incrementUsage() {
   return next;
 }
 function getIsPaid() { return localStorage.getItem('decode_is_paid') === 'true'; }
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('decode_history') || '[]'); } catch { return []; }
+}
+function saveToHistory(entry) {
+  const history = getHistory();
+  history.unshift(entry);
+  localStorage.setItem('decode_history', JSON.stringify(history.slice(0, 200)));
+}
+function clearHistory() { localStorage.removeItem('decode_history'); }
+
+function timeAgo(ts) {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' hours ago';
+  return Math.floor(diff / 86400) + ' days ago';
+}
 
 const CARD_COLORS = {
   what_is_this: '#3B82F6',
@@ -39,6 +63,7 @@ const globalStyles = `
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.7; }
   }
+  * { box-sizing: border-box; }
 `;
 
 function loadRazorpayScript() {
@@ -57,7 +82,6 @@ function loadRazorpayScript() {
 function UpgradeScreen({ onSuccess, onBack }) {
   const [phone, setPhone] = useState('');
   const [paying, setPaying] = useState(false);
-  const [proMsg, setProMsg] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
   async function handleUpgrade() {
@@ -68,7 +92,6 @@ function UpgradeScreen({ onSuccess, onBack }) {
     setPhoneError('');
     setPaying(true);
 
-    // Step 1 — get key from backend
     let keyId;
     try {
       const res = await fetch('/api/payment/razorpay-key');
@@ -86,7 +109,6 @@ function UpgradeScreen({ onSuccess, onBack }) {
       return;
     }
 
-    // Step 2 — load Razorpay script
     const loaded = await loadRazorpayScript();
     if (!loaded) {
       alert('Could not load payment gateway. Please try again.');
@@ -94,7 +116,6 @@ function UpgradeScreen({ onSuccess, onBack }) {
       return;
     }
 
-    // Step 3 — open Razorpay modal
     const options = {
       key: keyId,
       amount: 19900,
@@ -104,18 +125,13 @@ function UpgradeScreen({ onSuccess, onBack }) {
       theme: { color: '#534AB7' },
       prefill: { contact: phone },
       handler: async function (response) {
-        // Step 4 — on payment success
         try {
           await fetch('/api/payment/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              phone,
-              razorpay_payment_id: response.razorpay_payment_id,
-            }),
+            body: JSON.stringify({ phone, razorpay_payment_id: response.razorpay_payment_id }),
           });
         } catch { /* best-effort */ }
-
         localStorage.setItem('decode_is_paid', 'true');
         localStorage.setItem('decode_count', '0');
         alert('Welcome to Decode Pro! Unlimited decodes unlocked.');
@@ -129,49 +145,74 @@ function UpgradeScreen({ onSuccess, onBack }) {
     setPaying(false);
   }
 
-  if (proMsg) {
-    return (
-      <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, textAlign: 'center', boxShadow: '0 2px 20px rgba(83,74,183,0.1)' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-        <p style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>{proMsg}</p>
-      </div>
-    );
-  }
+  const freeFeatures = ['3 decodes per day', 'English, Hindi, Bengali', 'Image upload', '—'];
+  const proFeatures = ['Unlimited decodes', 'All languages', 'Image upload', 'Full decode history', 'Follow-up questions', 'Read aloud'];
 
   return (
-    <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, boxShadow: '0 2px 20px rgba(83,74,183,0.1)' }}>
+    <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: '28px 24px', boxShadow: '0 2px 20px rgba(83,74,183,0.1)' }}>
+
+      {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 36, marginBottom: 12 }}>🔒</div>
-        <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: '#1a1a2e' }}>
-          You've used your 3 free decodes today
+        <div style={{ fontSize: 36, marginBottom: 10 }}>🔓</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, color: '#1a1a2e' }}>
+          Unlock Decode Pro
         </h2>
-        <p style={{ margin: 0, fontSize: 14, color: '#666' }}>
-          Upgrade to Decode Pro for unlimited decodes
+        <p style={{ margin: '0 0 10px', fontSize: 14, color: '#666' }}>
+          Join thousands of Indians who understand their documents
         </p>
+        <div style={{ fontSize: 13, color: '#F59E0B', fontWeight: 600 }}>
+          ★★★★★ Trusted by patients, tenants &amp; families
+        </div>
       </div>
 
-      {/* Pricing card */}
-      <div style={{
-        border: `2px solid ${ACCENT}`, borderRadius: 16,
-        padding: '20px 22px', marginBottom: 24, backgroundColor: '#faf9ff',
-      }}>
-        <div style={{ fontSize: 32, fontWeight: 800, color: ACCENT, marginBottom: 4 }}>₹199</div>
-        <div style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>per month · cancel anytime</div>
-        {[
-          'Unlimited decodes every day',
-          'Hindi, Bengali and English',
-          'Upload document photos',
-          'Save decode history (coming soon)',
-        ].map((feat, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: i < 3 ? 10 : 0 }}>
-            <span style={{ color: '#10B981', fontSize: 16, flexShrink: 0 }}>✓</span>
-            <span style={{ fontSize: 14, color: '#333' }}>{feat}</span>
-          </div>
-        ))}
+      {/* Pricing cards */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        {/* Free card */}
+        <div style={{
+          flex: 1, border: '2px solid #e8e6f0', borderRadius: 14,
+          padding: '16px 14px', position: 'relative',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#444', marginBottom: 4 }}>Free</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#1a1a2e', marginBottom: 2 }}>₹0</div>
+          <div style={{ fontSize: 12, color: '#aaa', marginBottom: 14 }}>per month</div>
+          {freeFeatures.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8 }}>
+              <span style={{ color: f === '—' ? '#ddd' : '#10B981', fontSize: 13, flexShrink: 0, marginTop: 1 }}>
+                {f === '—' ? '✗' : '✓'}
+              </span>
+              <span style={{ fontSize: 12, color: f === '—' ? '#ccc' : '#444', lineHeight: 1.4 }}>
+                {f === '—' ? 'No history' : f}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Pro card */}
+        <div style={{
+          flex: 1, border: `2px solid ${ACCENT}`, borderRadius: 14,
+          padding: '16px 14px', backgroundColor: '#faf9ff', position: 'relative',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', top: 8, right: -18,
+            backgroundColor: ACCENT, color: '#fff',
+            fontSize: 9, fontWeight: 800, padding: '3px 22px',
+            transform: 'rotate(35deg)', letterSpacing: '0.5px',
+          }}>POPULAR</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: ACCENT, marginBottom: 4 }}>Pro</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#1a1a2e', marginBottom: 2 }}>₹199</div>
+          <div style={{ fontSize: 12, color: '#aaa', marginBottom: 14 }}>per month</div>
+          {proFeatures.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8 }}>
+              <span style={{ color: '#10B981', fontSize: 13, flexShrink: 0, marginTop: 1 }}>✓</span>
+              <span style={{ fontSize: 12, color: '#333', lineHeight: 1.4 }}>{f}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Phone input */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 14 }}>
         <label style={{ fontSize: 13, fontWeight: 600, color: '#444', display: 'block', marginBottom: 8 }}>
           Mobile number (for your account)
         </label>
@@ -183,8 +224,7 @@ function UpgradeScreen({ onSuccess, onBack }) {
           style={{
             width: '100%', padding: '11px 14px', borderRadius: 10,
             border: `2px solid ${phoneError ? '#ffd0d0' : '#e8e6f0'}`,
-            fontSize: 15, color: '#1a1a2e', outline: 'none',
-            fontFamily: 'inherit', boxSizing: 'border-box',
+            fontSize: 15, color: '#1a1a2e', outline: 'none', fontFamily: 'inherit',
           }}
         />
         {phoneError && <p style={{ margin: '6px 0 0', fontSize: 13, color: '#cc3333' }}>{phoneError}</p>}
@@ -197,11 +237,11 @@ function UpgradeScreen({ onSuccess, onBack }) {
           width: '100%', padding: '15px 0',
           backgroundColor: paying ? '#9992d4' : ACCENT,
           color: '#fff', border: 'none', borderRadius: 12,
-          fontSize: 17, fontWeight: 700, cursor: paying ? 'not-allowed' : 'pointer',
+          fontSize: 16, fontWeight: 700, cursor: paying ? 'not-allowed' : 'pointer',
           marginBottom: 14,
         }}
       >
-        {paying ? 'Opening payment...' : 'Upgrade Now — ₹199/month'}
+        {paying ? 'Opening payment...' : 'Upgrade to Pro — ₹199/month'}
       </button>
 
       <div style={{ textAlign: 'center' }}>
@@ -213,6 +253,153 @@ function UpgradeScreen({ onSuccess, onBack }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/* ─── History Screen ─── */
+function HistoryScreen({ isPaid, onBack, onView }) {
+  const [history, setHistory] = useState(getHistory());
+  const [selected, setSelected] = useState(null);
+
+  const visible = isPaid ? history : history.slice(0, 5);
+
+  function handleClear() {
+    if (window.confirm('Clear all decode history?')) {
+      clearHistory();
+      setHistory([]);
+    }
+  }
+
+  if (selected) {
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} style={{
+          background: 'none', border: 'none', color: ACCENT, fontSize: 14,
+          fontWeight: 600, cursor: 'pointer', padding: '0 0 16px', display: 'flex', alignItems: 'center', gap: 6,
+        }}>← Back to history</button>
+
+        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>{selected.docType} · {timeAgo(selected.id)}</div>
+        <div style={{ fontSize: 14, color: '#666', marginBottom: 20, fontStyle: 'italic' }}>{selected.preview}</div>
+
+        {[
+          { key: 'what_is_this', label: 'WHAT IS THIS?', color: CARD_COLORS.what_is_this },
+          { key: 'what_it_means_for_you', label: 'WHAT IT MEANS FOR YOU', color: CARD_COLORS.what_it_means_for_you },
+          { key: 'what_to_do_next', label: 'WHAT TO DO NEXT', color: CARD_COLORS.what_to_do_next },
+        ].map(({ key, label, color }) => (
+          <div key={key} style={{
+            backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14,
+            boxShadow: '0 2px 16px rgba(83,74,183,0.07)', borderLeft: `4px solid ${color}`,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1.2px', marginBottom: 10 }}>{label}</div>
+            {key === 'what_to_do_next' ? (
+              <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
+                {(selected.result.what_to_do_next || []).map((step, i) => (
+                  <li key={i} style={{ fontSize: 15, color: '#1a1a2e', lineHeight: 1.65, marginBottom: 8 }}>{step}</li>
+                ))}
+              </ol>
+            ) : (
+              <p style={{ margin: 0, fontSize: 15, color: '#1a1a2e', lineHeight: 1.65 }}>{selected.result[key]}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <button onClick={onBack} style={{
+          background: 'none', border: 'none', color: ACCENT, fontSize: 14,
+          fontWeight: 600, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6,
+        }}>← Back</button>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e' }}>Decode History</div>
+        <div style={{ width: 60 }} />
+      </div>
+
+      {!isPaid && history.length > 5 && (
+        <div style={{
+          backgroundColor: '#fff8e6', border: '1px solid #ffe08a', borderRadius: 10,
+          padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#92650a',
+        }}>
+          Showing last 5 decodes. Upgrade to Pro to see all {history.length}.
+        </div>
+      )}
+
+      {visible.length === 0 ? (
+        <div style={{
+          backgroundColor: '#fff', borderRadius: 16, padding: '40px 24px', textAlign: 'center',
+          boxShadow: '0 2px 16px rgba(83,74,183,0.07)',
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
+          <p style={{ margin: 0, fontSize: 15, color: '#999' }}>No decodes yet. Decode your first document!</p>
+        </div>
+      ) : (
+        <div>
+          {visible.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => setSelected(item)}
+              style={{
+                backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12,
+                boxShadow: '0 2px 12px rgba(83,74,183,0.06)', cursor: 'pointer',
+                borderLeft: `3px solid ${ACCENT}`, transition: 'box-shadow 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(83,74,183,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(83,74,183,0.06)'}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{
+                  backgroundColor: '#f0eeff', color: ACCENT, fontSize: 11, fontWeight: 700,
+                  padding: '3px 10px', borderRadius: 20,
+                }}>{item.docType}</span>
+                <span style={{ fontSize: 12, color: '#aaa' }}>{timeAgo(item.id)}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 14, color: '#444', lineHeight: 1.5 }}>{item.preview}</p>
+            </div>
+          ))}
+
+          {visible.length > 0 && (
+            <button onClick={handleClear} style={{
+              width: '100%', padding: '12px 0', marginTop: 8,
+              backgroundColor: 'transparent', color: '#cc3333',
+              border: '1px solid #ffd0d0', borderRadius: 12,
+              fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            }}>Clear history</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Result Cards (reusable) ─── */
+function ResultCards({ result }) {
+  return (
+    <>
+      {[
+        { key: 'what_is_this', label: 'WHAT IS THIS?', color: CARD_COLORS.what_is_this, delay: '0ms' },
+        { key: 'what_it_means_for_you', label: 'WHAT IT MEANS FOR YOU', color: CARD_COLORS.what_it_means_for_you, delay: '80ms' },
+        { key: 'what_to_do_next', label: 'WHAT TO DO NEXT', color: CARD_COLORS.what_to_do_next, delay: '160ms' },
+      ].map(({ key, label, color, delay }) => (
+        <div key={key} style={{
+          backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14,
+          boxShadow: '0 2px 16px rgba(83,74,183,0.07)', borderLeft: `4px solid ${color}`,
+          animation: `fadeInUp 0.35s ease both`, animationDelay: delay,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1.2px', marginBottom: 10 }}>{label}</div>
+          {key === 'what_to_do_next' ? (
+            <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
+              {(result.what_to_do_next || []).map((step, i) => (
+                <li key={i} style={{ fontSize: 15, color: '#1a1a2e', lineHeight: 1.65, marginBottom: i < result.what_to_do_next.length - 1 ? 10 : 0 }}>{step}</li>
+              ))}
+            </ol>
+          ) : (
+            <p style={{ margin: 0, fontSize: 15, color: '#1a1a2e', lineHeight: 1.65 }}>{result[key]}</p>
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -229,11 +416,13 @@ export default function App() {
   const [usageCount, setUsageCount] = useState(getUsageCount());
   const [limitReached, setLimitReached] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [isPaid, setIsPaid] = useState(getIsPaid());
   const [followups, setFollowups] = useState([]);
   const [followupQ, setFollowupQ] = useState('');
   const [followupLoading, setFollowupLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -243,6 +432,14 @@ export default function App() {
     setIsPaid(paid);
     if (count >= DAILY_LIMIT && !paid) setLimitReached(true);
   }, []);
+
+  useEffect(() => {
+    if (result || text) return;
+    const timer = setInterval(() => {
+      setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [result, text]);
 
   function handleImageChange(e) {
     const file = e.target.files[0];
@@ -291,6 +488,8 @@ export default function App() {
         setUsageCount(newCount);
         if (newCount >= DAILY_LIMIT) setLimitReached(true);
       }
+      const preview = text.trim().slice(0, 60) + (text.trim().length > 60 ? '...' : '');
+      saveToHistory({ id: Date.now(), docType, language, preview: preview || `[Image] ${docType}`, result: data.result });
       setResult(data.result);
     } catch { setError('Could not connect to server. Please try again.'); }
     setLoading(false);
@@ -378,19 +577,36 @@ export default function App() {
           <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.2 }}>Decode</div>
           <div style={{ fontSize: 13, color: '#999', marginTop: 1 }}>Understand any document in plain language</div>
         </div>
-        {isPaid && (
-          <div style={{
-            marginLeft: 'auto', backgroundColor: '#f0eeff', color: ACCENT,
-            fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
-          }}>PRO</div>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isPaid && (
+            <div style={{
+              backgroundColor: '#f0eeff', color: ACCENT,
+              fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
+            }}>PRO</div>
+          )}
+          <button
+            onClick={() => { setShowHistory(true); setShowUpgrade(false); setResult(null); }}
+            style={{
+              backgroundColor: 'transparent', color: ACCENT,
+              border: `1.5px solid ${ACCENT}`, borderRadius: 20,
+              fontSize: 13, fontWeight: 600, padding: '5px 14px', cursor: 'pointer',
+            }}
+          >History</button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 48px' }}>
 
-        {/* Upgrade screen */}
-        {showUpgrade ? (
+        {/* History screen */}
+        {showHistory ? (
+          <HistoryScreen
+            isPaid={isPaid}
+            onBack={() => setShowHistory(false)}
+          />
+
+        ) : showUpgrade ? (
           <UpgradeScreen onSuccess={handleUpgradeSuccess} onBack={() => setShowUpgrade(false)} />
+
         ) : !result ? (
           <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 2px 20px rgba(83,74,183,0.08)' }}>
 
@@ -457,14 +673,14 @@ export default function App() {
               )}
             </div>
 
-            {/* Textarea */}
+            {/* Textarea with animated placeholder */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>
                 Document text{imageBase64 && <span style={{ fontWeight: 400, color: '#aaa' }}> (optional if image uploaded)</span>}
               </label>
               <textarea
                 value={text} onChange={e => setText(e.target.value)}
-                placeholder="Paste confusing text here..." rows={5}
+                placeholder={PLACEHOLDERS[placeholderIdx]} rows={5}
                 style={{
                   width: '100%', padding: '12px 14px', borderRadius: 10,
                   border: '2px solid #e8e6f0', fontSize: 15, color: '#1a1a2e',
@@ -543,32 +759,46 @@ export default function App() {
                 {loading && <p style={{ textAlign: 'center', fontSize: 13, color: '#aaa', marginTop: 10, marginBottom: 0 }}>This usually takes 5–10 seconds</p>}
               </>
             )}
+
+            {/* Trust badges */}
+            {!loading && (
+              <div style={{
+                display: 'flex', justifyContent: 'center', gap: 0,
+                marginTop: 18, flexWrap: 'wrap',
+              }}>
+                {['🔒 Private & secure', '⚡ Results in 10 seconds', '🇮🇳 Made for India'].map((badge, i, arr) => (
+                  <span key={i} style={{
+                    fontSize: 12, color: '#999', padding: '0 10px',
+                    borderRight: i < arr.length - 1 ? '1px solid #ddd' : 'none',
+                  }}>{badge}</span>
+                ))}
+              </div>
+            )}
+
+            {/* How it works */}
+            <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid #f0eeff' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', textAlign: 'center', marginBottom: 18, letterSpacing: '0.5px', textTransform: 'uppercase' }}>How it works</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { icon: '📋', step: '1', title: 'Paste or upload', desc: 'Your document' },
+                  { icon: '🌐', step: '2', title: 'Choose language', desc: 'English, Hindi, Bengali' },
+                  { icon: '✨', step: '3', title: 'Get explanation', desc: 'In plain language' },
+                ].map(({ icon, step, title, desc }) => (
+                  <div key={step} style={{ flex: 1, textAlign: 'center', padding: '14px 8px', backgroundColor: '#faf9ff', borderRadius: 12 }}>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, marginBottom: 4 }}>Step {step}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 2 }}>{title}</div>
+                    <div style={{ fontSize: 11, color: '#aaa' }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         ) : (
           /* Result cards */
           <div>
-            {[
-              { key: 'what_is_this', label: 'WHAT IS THIS?', color: CARD_COLORS.what_is_this, delay: '0ms' },
-              { key: 'what_it_means_for_you', label: 'WHAT IT MEANS FOR YOU', color: CARD_COLORS.what_it_means_for_you, delay: '80ms' },
-              { key: 'what_to_do_next', label: 'WHAT TO DO NEXT', color: CARD_COLORS.what_to_do_next, delay: '160ms' },
-            ].map(({ key, label, color, delay }) => (
-              <div key={key} style={{
-                backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14,
-                boxShadow: '0 2px 16px rgba(83,74,183,0.07)', borderLeft: `4px solid ${color}`,
-                animation: `fadeInUp 0.35s ease both`, animationDelay: delay,
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1.2px', marginBottom: 10 }}>{label}</div>
-                {key === 'what_to_do_next' ? (
-                  <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
-                    {(result.what_to_do_next || []).map((step, i) => (
-                      <li key={i} style={{ fontSize: 15, color: '#1a1a2e', lineHeight: 1.65, marginBottom: i < result.what_to_do_next.length - 1 ? 10 : 0 }}>{step}</li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p style={{ margin: 0, fontSize: 15, color: '#1a1a2e', lineHeight: 1.65 }}>{result[key]}</p>
-                )}
-              </div>
-            ))}
+            <ResultCards result={result} />
 
             {/* Read aloud */}
             <button
@@ -604,13 +834,12 @@ export default function App() {
                 Have a question about this document?
               </div>
 
-              {/* Previous Q&As */}
               {followups.map((item, i) => (
                 <div key={i} style={{ marginBottom: 14 }}>
                   <div style={{
                     backgroundColor: '#f0eeff', borderRadius: '12px 12px 4px 12px',
                     padding: '10px 14px', fontSize: 14, color: ACCENT, fontWeight: 500,
-                    marginBottom: 8, alignSelf: 'flex-end',
+                    marginBottom: 8,
                   }}>
                     {item.q}
                   </div>
@@ -629,7 +858,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Input row */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   value={followupQ}

@@ -1,0 +1,69 @@
+Add these 3 features to the Decode app:
+
+FEATURE 1 — Decode History (saved results)
+Store every decode in localStorage under key "decode_history".
+Each entry: { id, docType, language, preview, result, timestamp }
+- preview = first 60 chars of input text + "..."
+- id = Date.now()
+- Save automatically after every successful decode
+
+Add a "History" button in the header (top right, outlined style).
+Clicking it shows a history panel/page with:
+- List of past decodes, most recent first
+- Each item shows: docType badge, preview text, timestamp (e.g. "2 hours ago")
+- Clicking any item shows the full result again
+- A "Clear history" button at the bottom
+- "← Back" button to return to home
+- If no history: show "No decodes yet. Decode your first document!"
+- Free users: show last 5 decodes only
+- Paid users: unlimited history (check localStorage decode_is_paid)
+
+FEATURE 2 — Better upgrade page
+Redesign the upgrade page to be more compelling:
+
+- Header: "🔓 Unlock Decode Pro"
+- Subtext: "Join thousands of Indians who understand their documents"
+- Social proof line: "★★★★★ Trusted by patients, tenants & families"
+
+Two pricing cards side by side:
+Card 1 — Free (current):
+- "Free" in large text
+- ₹0/month
+- 3 decodes per day
+- English, Hindi, Bengali
+- Image upload
+- No history
+
+Card 2 — Pro (highlighted with #534AB7 border):
+- "Pro" in large text  
+- ₹199/month
+- Unlimited decodes
+- All languages
+- Image upload
+- Full decode history
+- Follow-up questions
+- Read aloud
+- "Most Popular" badge on top
+
+Upgrade button below: "Upgrade to Pro — ₹199/month"
+Keep existing Razorpay integration on that button.
+
+FEATURE 3 — Homepage improvements
+Add these to the main home page:
+
+1. Animated placeholder in textarea that cycles every 3 seconds:
+   - "Paste your medical report here..."
+   - "Paste a legal notice here..."
+   - "Paste a bank letter here..."
+   - "Paste a government document here..."
+
+2. Trust badges row below the Decode button:
+   🔒 Private & secure  |  ⚡ Results in 10 seconds  |  🇮🇳 Made for India
+
+3. A "How it works" section at the very bottom (only visible before first decode):
+   3 steps in a row:
+   Step 1: 📋 Paste or upload your document
+   Step 2: 🌐 Choose your language  
+   Step 3: ✨ Get plain language explanation
+
+Restart and show preview when done.
