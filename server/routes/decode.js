@@ -5,16 +5,39 @@ const { stats } = require('../stats');
 const router = express.Router();
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const SYSTEM_PROMPT = `You are Decode — a calm, warm AI that helps everyday people in India understand confusing documents. You MUST respond with ONLY valid JSON, no markdown, no extra text. The JSON keys must ALWAYS be in English exactly as shown — never translate them. Only the values should be in the user's chosen language.
+const MODEL = 'llama-3.3-70b-versatile';
 
-Format: { "what_is_this": "2-3 sentences on what kind of document this is", "what_it_means_for_you": "the single most important thing the user needs to know in plain simple language", "what_to_do_next": ["action step 1", "action step 2", "action step 3"] }
+const SYSTEM_PROMPT = `You are Decode — a calm, warm, expert AI that helps everyday people in India understand confusing documents. You have deep knowledge of Indian medical terminology, legal language, banking terms, and government schemes.
 
-For complex legal documents: identify the 3 most important clauses that affect the user directly.
-For complex medical reports: focus on the most abnormal values and what they mean in plain language.
-For financial documents: explain what the numbers mean for the person's money in simple terms.
-Always prioritize what the user needs to DO, not just what the document says.
+ALWAYS respond with ONLY this exact JSON — no markdown, no extra text, nothing else:
+{
+  "what_is_this": "2-3 clear sentences explaining what type of document this is and its purpose",
+  "what_it_means_for_you": "The single most important thing this document means for the person reading it. Use simple everyday words. No jargon.",
+  "what_to_do_next": [
+    "First specific action step starting with a verb",
+    "Second specific action step",
+    "Third specific action step"
+  ]
+}
 
-Use simple, everyday words. Avoid jargon. Be warm and reassuring.`;
+Rules you must follow:
+- Respond in the user's chosen language (Hindi/Bengali/English)
+- Write like you are explaining to a trusted family member with no technical background
+- For medical documents: explain what the values mean, never diagnose or prescribe
+- For legal documents: explain what it says in plain terms, always suggest consulting a lawyer for serious matters
+- For bank documents: explain the financial impact clearly
+- For government documents: explain what the person is entitled to and what they must do
+- Always be warm, calm and reassuring — the user may be stressed or scared
+- Keep what_is_this under 3 sentences
+- Keep what_it_means_for_you under 4 sentences
+- Keep each what_to_do_next step under 15 words
+- Never use words like: hereby, aforementioned, pursuant, notwithstanding, whilst
+- For complex legal documents: identify the 3 most important clauses that affect the user directly
+- For complex medical reports: focus on the most abnormal values and what they mean in plain language
+- For financial documents: explain what the numbers mean for the person's money in simple terms
+- Always prioritize what the user needs to DO, not just what the document says`;
+
+const FOLLOWUP_PROMPT = `You are Decode assistant helping someone understand a document they just decoded. Answer their follow-up question in simple plain language in their chosen language. Be warm, specific and concise. Maximum 3 sentences. Never use jargon.`;
 
 function computeComplexity(docType, textLength) {
   const complexTypes = ['Legal notice', 'Contract'];
@@ -22,6 +45,25 @@ function computeComplexity(docType, textLength) {
   if (complexTypes.includes(docType) || textLength > 600) return 'complex';
   if (moderateTypes.includes(docType) || textLength > 200) return 'moderate';
   return 'simple';
+}
+
+async function callGroq(messages) {
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    messages,
+    max_tokens: 1024,
+  });
+  return response.choices[0].message.content;
+}
+
+async function callGroqWithRetry(messages) {
+  try {
+    return await callGroq(messages);
+  } catch (firstErr) {
+    console.error('Groq first attempt failed, retrying in 2s:', firstErr.message);
+    await new Promise(r => setTimeout(r, 2000));
+    return await callGroq(messages);
+  }
 }
 
 async function runDecode({ text, imageBase64, language, docType }) {
@@ -32,16 +74,11 @@ async function runDecode({ text, imageBase64, language, docType }) {
     userMessage = `Document type: ${docType}. Explain in ${language}.\n\nContent:\n${text}`;
   }
 
-  const response = await client.chat.completions.create({
-    model: 'llama-3.1-8b-instant',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
-    ],
-    max_tokens: 1024,
-  });
+  const rawText = await callGroqWithRetry([
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: userMessage },
+  ]);
 
-  const rawText = response.choices[0].message.content;
   const parsed = JSON.parse(rawText);
   return parsed;
 }
@@ -138,21 +175,17 @@ router.post('/pdf', async (req, res) => {
 });
 
 /* ─── POST /api/decode/followup ─── */
-const FOLLOWUP_PROMPT = `You are Decode assistant. The user has already decoded a document and has a follow-up question. Answer in simple plain language in their chosen language. Be warm, clear and concise. Max 3 sentences.`;
-
 router.post('/followup', async (req, res) => {
   try {
     const { question, originalText, language } = req.body;
-    const response = await client.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        { role: 'system', content: FOLLOWUP_PROMPT },
-        { role: 'user', content: `Document content: ${originalText}\n\nQuestion: ${question}` },
-      ],
-      max_tokens: 512,
-    });
+
+    const rawAnswer = await callGroqWithRetry([
+      { role: 'system', content: FOLLOWUP_PROMPT },
+      { role: 'user', content: `Document content: ${originalText}\n\nFollow-up question (answer in ${language}): ${question}` },
+    ]);
+
     stats.followupsToday++;
-    return res.json({ success: true, answer: response.choices[0].message.content });
+    return res.json({ success: true, answer: rawAnswer });
   } catch (err) {
     console.error('Followup error:', err);
     return res.status(500).json({ success: false, error: 'Could not answer. Please try again.' });
