@@ -22,6 +22,9 @@ const GRAD = `linear-gradient(135deg, ${C.primary}, #6C63D5)`;
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const R = { card: 16, input: 12, pill: 50 };
 const IS_DEV = new URLSearchParams(window.location.search).get('dev') === 'true';
+const API_BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? 'https://decode-app-5ko9.onrender.com'
+  : '';
 
 /* ─── Constants ─── */
 const LANGUAGES = ['English', 'Hindi', 'Bengali'];
@@ -231,7 +234,7 @@ function DevToolbar({ onRefreshState, onShowUpgrade, onSetText, onSetLanguage })
 function AdminPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  async function fetchStats() { try { const r = await fetch('https://decode-app-5ko9.onrender.com/api/admin/stats'); setData(await r.json()); } catch {} setLoading(false); }
+  async function fetchStats() { try { const r = await fetch(`${API_BASE}/api/admin/stats`); setData(await r.json()); } catch {} setLoading(false); }
   useEffect(() => { fetchStats(); const t = setInterval(fetchStats, 30000); return () => clearInterval(t); }, []);
   return (
     <div style={{ minHeight:'100vh', background:'#0f0f1a', fontFamily:FONT, color:'#fff', padding:24 }}>
@@ -285,14 +288,14 @@ function UpgradeScreen({ onBack }) {
     if (!phone.trim() || phone.trim().length < 10) { setPhoneError('Please enter a valid 10-digit mobile number.'); return; }
     setPhoneError(''); setPaying(true);
     let keyId;
-    try { const r = await fetch('https://decode-app-5ko9.onrender.com/api/payment/razorpay-key'); keyId = (await r.json()).key_id; } catch { alert('Could not reach payment server.'); setPaying(false); return; }
+    try { const r = await fetch(`${API_BASE}/api/payment/razorpay-key`); keyId = (await r.json()).key_id; } catch { alert('Could not reach payment server.'); setPaying(false); return; }
     if (!keyId) { alert('Payment not configured.'); setPaying(false); return; }
     if (!await loadRazorpayScript()) { alert('Could not load payment gateway.'); setPaying(false); return; }
     new window.Razorpay({
       key:keyId, amount:19900, currency:'INR', name:'Decode', description:'Pro Monthly',
       theme:{color:C.primary}, prefill:{contact:phone},
       handler: async (resp) => {
-        try { await fetch('https://decode-app-5ko9.onrender.com/api/payment/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,razorpay_payment_id:resp.razorpay_payment_id})}); } catch {}
+        try { await fetch(`${API_BASE}/api/payment/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,razorpay_payment_id:resp.razorpay_payment_id})}); } catch {}
         localStorage.setItem('decode_is_paid','true'); localStorage.setItem('decode_count','0');
         alert('Welcome to Decode Pro!'); window.location.reload();
       },
@@ -455,7 +458,7 @@ function WaitlistBar({ onDismiss }) {
     if (phone.length < 10) return;
     setSubmitting(true);
     try {
-      await fetch('https://decode-app-5ko9.onrender.com/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
+      await fetch(`${API_BASE}/api/waitlist`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
       const n=JSON.parse(localStorage.getItem('waitlist_numbers')||'[]'); if(!n.includes(phone)){n.push(phone);localStorage.setItem('waitlist_numbers',JSON.stringify(n));}
     } catch {}
     setSubmitted(true); setSubmitting(false);
@@ -488,7 +491,7 @@ export default function App() {
   const [serverConnecting, setServerConnecting] = useState(true);
 
   useEffect(() => {
-    fetch('https://decode-app-5ko9.onrender.com/health').catch(() => {});
+    fetch(`${API_BASE}/health`).catch(() => {});
     const t = setTimeout(() => setServerConnecting(false), 30000);
     return () => clearTimeout(t);
   }, []);
@@ -601,7 +604,7 @@ export default function App() {
     slowTimerRef.current = setTimeout(()=>setSlowWarning(true), 15000);
     try {
       const isPdf = !!pdfBase64;
-      const endpoint = isPdf ? '/api/decode/pdf' : '/api/decode';
+      const endpoint = isPdf ? `${API_BASE}/api/decode/pdf` : `${API_BASE}/api/decode`;
       const body = isPdf
         ? JSON.stringify({ pdfBase64, language, docType })
         : JSON.stringify({ text, imageBase64, language, docType });
@@ -651,7 +654,7 @@ export default function App() {
     if (!followupQ.trim()) return;
     const q = followupQ.trim(); setFollowupQ(''); setFollowupLoading(true);
     try {
-      const r = await fetch('https://decode-app-5ko9.onrender.com/api/decode/followup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,originalText:text,language})});
+      const r = await fetch(`${API_BASE}/api/decode/followup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,originalText:text,language})});
       const d = await r.json();
       setFollowups(p=>[...p,{q,a:d.success?d.answer:d.error}]);
     } catch { setFollowups(p=>[...p,{q,a:'Could not get an answer. Please try again.'}]); }
