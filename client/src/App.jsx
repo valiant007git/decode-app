@@ -1,124 +1,106 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const ACCENT = '#534AB7';
-const ACCENT_DARK = '#3f38a0';
-const LANGUAGES = ['English', 'Hindi', 'Bengali'];
-const DOC_TYPES = [
-  'Medical report', 'Legal notice', 'Bank document',
-  'Govt letter', 'Prescription', 'Contract', 'Other',
-];
-const PLACEHOLDERS = [
-  'Paste your medical report here...',
-  'Paste a legal notice here...',
-  'Paste a bank letter here...',
-  'Paste a government document here...',
-];
-const EXAMPLES = [
-  'Haemoglobin 9.2 g/dL, below normal range 12-16',
-  'Legal notice: vacate premises within 30 days',
-  'EMI bounced, NACH mandate rejected by bank',
-];
+/* ─── Design Tokens ─── */
+const C = {
+  primary: '#534AB7',
+  primaryDark: '#3D3589',
+  primaryGlow: 'rgba(83,74,183,0.12)',
+  primaryShadow: 'rgba(83,74,183,0.35)',
+  success: '#10B981',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  bg: '#F8F7FF',
+  surface: '#FFFFFF',
+  surface2: '#F3F2FF',
+  text: '#1A1A2E',
+  textSecondary: '#6B7280',
+  textMuted: '#9CA3AF',
+  border: '#E8E6FF',
+  shadow: '0 2px 20px rgba(83,74,183,0.08)',
+};
+const GRAD = `linear-gradient(135deg, ${C.primary}, #6C63D5)`;
+const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const R = { card: 16, input: 12, pill: 50 };
 
+/* ─── Constants ─── */
+const LANGUAGES = ['English', 'Hindi', 'Bengali'];
+const DOC_TYPES = ['Medical report','Legal notice','Bank document','Govt letter','Prescription','Contract','Other'];
+const PLACEHOLDERS = ['Paste your medical report here...','Paste a legal notice here...','Paste a bank letter here...','Paste a government document here...'];
+const EXAMPLES = ['Haemoglobin 9.2 g/dL, below normal range 12-16','Legal notice: vacate premises within 30 days','EMI bounced, NACH mandate rejected by bank','Government notice: appear before officer within 7 days'];
+const CARD_COLORS = { what_is_this: '#3B82F6', what_it_means_for_you: C.success, what_to_do_next: C.primary };
+
+/* ─── Helpers ─── */
 function getTodayKey() { return 'decode_count_' + new Date().toISOString().slice(0, 10); }
 function getUsageCount() { return parseInt(localStorage.getItem(getTodayKey()) || '0', 10); }
-function incrementUsage() {
-  const key = getTodayKey();
-  const next = getUsageCount() + 1;
-  localStorage.setItem(key, String(next));
-  return next;
-}
+function incrementUsage() { const k = getTodayKey(), n = getUsageCount() + 1; localStorage.setItem(k, String(n)); return n; }
 function getIsPaid() { return localStorage.getItem('decode_is_paid') === 'true'; }
 function getBonus() { return parseInt(localStorage.getItem('decode_bonus') || '0', 10); }
 function addBonus() { localStorage.setItem('decode_bonus', String(getBonus() + 1)); }
 function getDailyLimit() { return 3 + getBonus(); }
-
-function getHistory() {
-  try { return JSON.parse(localStorage.getItem('decode_history') || '[]'); } catch { return []; }
-}
-function saveToHistory(entry) {
-  const history = getHistory();
-  history.unshift(entry);
-  localStorage.setItem('decode_history', JSON.stringify(history.slice(0, 200)));
-}
+function getHistory() { try { return JSON.parse(localStorage.getItem('decode_history') || '[]'); } catch { return []; } }
+function saveToHistory(e) { const h = getHistory(); h.unshift(e); localStorage.setItem('decode_history', JSON.stringify(h.slice(0, 200))); }
 function clearHistory() { localStorage.removeItem('decode_history'); }
-
-function timeAgo(ts) {
-  const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + ' hours ago';
-  return Math.floor(diff / 86400) + ' days ago';
-}
-
-const CARD_COLORS = {
-  what_is_this: '#3B82F6',
-  what_it_means_for_you: '#10B981',
-  what_to_do_next: '#534AB7',
-};
-
-const globalStyles = `
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.7; }
-  }
-  @keyframes slideUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to   { transform: translateY(0); opacity: 1; }
-  }
-  @keyframes shimmer {
-    0%   { background-position: -400px 0; }
-    100% { background-position: 400px 0; }
-  }
-  @keyframes ringPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(83,74,183,0.5); }
-    50%       { box-shadow: 0 0 0 8px rgba(83,74,183,0); }
-  }
-  .shimmer-line {
-    background: linear-gradient(90deg, #f0eeff 25%, #e0dcfa 50%, #f0eeff 75%);
-    background-size: 400px 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-    border-radius: 6px;
-  }
-  * { box-sizing: border-box; }
-`;
+function timeAgo(ts) { const d = Math.floor((Date.now() - ts) / 1000); if (d < 60) return 'just now'; if (d < 3600) return Math.floor(d/60) + 'm ago'; if (d < 86400) return Math.floor(d/3600) + 'h ago'; return Math.floor(d/86400) + 'd ago'; }
 
 function loadRazorpayScript() {
-  return new Promise((resolve) => {
-    if (document.getElementById('razorpay-script')) { resolve(true); return; }
-    const script = document.createElement('script');
-    script.id = 'razorpay-script';
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
+  return new Promise(resolve => {
+    if (document.getElementById('rzp-script')) { resolve(true); return; }
+    const s = document.createElement('script'); s.id = 'rzp-script';
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve(true); s.onerror = () => resolve(false);
+    document.body.appendChild(s);
   });
 }
 
+const DOC_TYPE_COLORS = {
+  'Medical report': '#3B82F6', 'Legal notice': '#EF4444', 'Bank document': '#F59E0B',
+  'Govt letter': '#8B5CF6', 'Prescription': '#06B6D4', 'Contract': '#EC4899', 'Other': '#6B7280',
+};
+
+/* ─── Global CSS ─── */
+const globalStyles = `
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: ${C.bg}; }
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes slideInRight { from { transform:translateX(100%); } to { transform:translateX(0); } }
+  @keyframes slideUp { from { transform:translateY(100%); opacity:0; } to { transform:translateY(0); opacity:1; } }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes shimmer { 0% { background-position:-600px 0; } 100% { background-position:600px 0; } }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
+  @keyframes ringPulse { 0%,100% { box-shadow:0 0 0 0 rgba(83,74,183,0.5); } 50% { box-shadow:0 0 0 10px rgba(83,74,183,0); } }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  @keyframes greenPop { 0%{transform:scale(1)} 50%{transform:scale(1.06)} 100%{transform:scale(1)} }
+  .shimmer { background:linear-gradient(90deg,#f0eeff 25%,#e4e0f8 50%,#f0eeff 75%); background-size:600px 100%; animation:shimmer 1.5s ease-in-out infinite; border-radius:6px; }
+  .btn-press:active { transform:scale(0.97) !important; }
+  .chip:hover { border-color:${C.primary} !important; color:${C.primary} !important; background:${C.surface2} !important; }
+  .card-hover:hover { transform:translateY(-2px); box-shadow:0 6px 28px rgba(83,74,183,0.13) !important; }
+  input, textarea, select { font-family:${FONT}; }
+  ::-webkit-scrollbar { width:0; height:0; }
+  .chips-scroll { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; -ms-overflow-style:none; }
+`;
+
+/* ─── Spinner ─── */
+const Spinner = ({ size = 18, color = '#fff' }) => (
+  <span style={{ display:'inline-block', width:size, height:size, border:`2px solid ${color}33`, borderTop:`2px solid ${color}`, borderRadius:'50%', animation:'spin 0.7s linear infinite', flexShrink:0 }} />
+);
+
 /* ─── Loading Skeleton ─── */
 function LoadingSkeleton() {
-  const cardTitles = ['WHAT IS THIS?', 'WHAT IT MEANS FOR YOU', 'WHAT TO DO NEXT'];
-  const borderColors = [CARD_COLORS.what_is_this, CARD_COLORS.what_it_means_for_you, CARD_COLORS.what_to_do_next];
+  const labels = [['WHAT IS THIS?','#3B82F6'],['WHAT IT MEANS FOR YOU','#10B981'],['WHAT TO DO NEXT','#534AB7']];
   return (
     <div>
-      {cardTitles.map((title, i) => (
-        <div key={i} style={{
-          backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14,
-          boxShadow: '0 2px 16px rgba(83,74,183,0.07)', borderLeft: `4px solid ${borderColors[i]}`,
-          animation: `fadeInUp 0.25s ease ${i * 60}ms both`,
-        }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: borderColors[i], letterSpacing: '1.2px', marginBottom: 12 }}>{title}</div>
-          <div className="shimmer-line" style={{ height: 14, width: '90%', marginBottom: 8 }} />
-          <div className="shimmer-line" style={{ height: 14, width: '75%', marginBottom: 8 }} />
-          {i === 2 && <div className="shimmer-line" style={{ height: 14, width: '60%' }} />}
+      {labels.map(([label, color], i) => (
+        <div key={i} style={{ background:C.surface, borderRadius:R.card, padding:20, marginBottom:12, boxShadow:C.shadow, borderTop:`3px solid ${color}`, animation:`fadeInUp 0.25s ease ${i*80}ms both` }}>
+          <div style={{ fontSize:11, fontWeight:700, color, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:12 }}>{label}</div>
+          <div className="shimmer" style={{ height:13, width:'88%', marginBottom:9 }} />
+          <div className="shimmer" style={{ height:13, width:'72%', marginBottom:9 }} />
+          {i === 2 && <div className="shimmer" style={{ height:13, width:'55%' }} />}
         </div>
       ))}
-      <div style={{ textAlign: 'center', fontSize: 14, color: '#aaa', marginTop: 8, animation: 'pulse 1.4s ease-in-out infinite' }}>
+      <p style={{ textAlign:'center', fontSize:14, color:C.textMuted, marginTop:16, animation:'pulse 1.4s ease-in-out infinite' }}>
         AI is reading your document...
-      </div>
+      </p>
     </div>
   );
 }
@@ -126,58 +108,24 @@ function LoadingSkeleton() {
 /* ─── Onboarding Tooltip ─── */
 function OnboardingTooltip({ step, onNext, onSkip }) {
   const steps = [
-    {
-      target: 'examples',
-      title: 'Try an example',
-      body: 'Tap any chip below to load a sample document and see how Decode works.',
-      icon: '💡',
-    },
-    {
-      target: 'language',
-      title: 'Choose your language',
-      body: 'Select English, Hindi, or Bengali — Decode explains in whichever you prefer.',
-      icon: '🌐',
-    },
-    {
-      target: 'button',
-      title: 'Click Decode',
-      body: 'Hit the Decode button to get a plain language explanation in seconds.',
-      icon: '✨',
-    },
+    { icon:'💡', title:'Try an example', body:'Tap any chip to load a sample document and see how Decode works.' },
+    { icon:'🌐', title:'Choose your language', body:'Select English, Hindi, or Bengali — Decode explains in whichever you prefer.' },
+    { icon:'✨', title:'Click Decode', body:'Hit the Decode button to get a plain language explanation in seconds.' },
   ];
-
-  const current = steps[step];
-
+  const s = steps[step];
   return (
-    <div style={{
-      position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-      width: 'min(480px, calc(100vw - 32px))',
-      backgroundColor: '#fff', borderRadius: 16,
-      boxShadow: '0 8px 40px rgba(83,74,183,0.25)',
-      padding: '20px 22px', zIndex: 3000,
-      animation: 'slideUp 0.3s ease both',
-      border: `2px solid ${ACCENT}`,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {steps.map((_, i) => (
-            <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: i === step ? ACCENT : '#e0ddf5' }} />
-          ))}
+    <div style={{ position:'fixed', bottom:80, left:'50%', transform:'translateX(-50%)', width:'min(440px,calc(100vw - 32px))', background:C.text, borderRadius:R.card, padding:'20px 22px', zIndex:3000, animation:'slideUp 0.3s ease both', boxShadow:'0 12px 40px rgba(26,26,46,0.4)' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+        <div style={{ display:'flex', gap:6 }}>
+          {steps.map((_,i) => <div key={i} style={{ width:6, height:6, borderRadius:'50%', background:i===step?C.primary:'rgba(255,255,255,0.3)', transition:'background 0.2s' }} />)}
         </div>
-        <button onClick={onSkip} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 13, cursor: 'pointer' }}>Skip</button>
+        <button onClick={onSkip} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.5)', fontSize:13, cursor:'pointer' }}>Skip</button>
       </div>
-      <div style={{ fontSize: 22, marginBottom: 8 }}>{current.icon}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e', marginBottom: 6 }}>{current.title}</div>
-      <p style={{ margin: '0 0 16px', fontSize: 14, color: '#666', lineHeight: 1.5 }}>{current.body}</p>
-      <button
-        onClick={onNext}
-        style={{
-          width: '100%', padding: '12px 0', backgroundColor: ACCENT,
-          color: '#fff', border: 'none', borderRadius: 10,
-          fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 48,
-        }}
-      >
-        {step < steps.length - 1 ? 'Next →' : 'Got it!'}
+      <div style={{ fontSize:24, marginBottom:10 }}>{s.icon}</div>
+      <div style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:6 }}>{s.title}</div>
+      <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', lineHeight:1.55, marginBottom:18 }}>{s.body}</p>
+      <button className="btn-press" onClick={onNext} style={{ width:'100%', height:48, background:GRAD, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:600, cursor:'pointer' }}>
+        {step < 2 ? 'Next →' : 'Got it!'}
       </button>
     </div>
   );
@@ -187,60 +135,38 @@ function OnboardingTooltip({ step, onNext, onSkip }) {
 function AdminPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  async function fetchStats() {
-    try {
-      const res = await fetch('/api/admin/stats');
-      const json = await res.json();
-      setData(json);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const cardStyle = { backgroundColor: '#1e1e2e', borderRadius: 16, padding: '24px 28px', flex: 1, minWidth: 140 };
-
+  async function fetchStats() { try { const r = await fetch('/api/admin/stats'); setData(await r.json()); } catch {} setLoading(false); }
+  useEffect(() => { fetchStats(); const t = setInterval(fetchStats, 30000); return () => clearInterval(t); }, []);
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#13131f', fontFamily: "'Segoe UI', system-ui, sans-serif", color: '#fff', padding: 24 }}>
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+    <div style={{ minHeight:'100vh', background:'#0f0f1a', fontFamily:FONT, color:'#fff', padding:24 }}>
+      <div style={{ maxWidth:800, margin:'0 auto' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:32 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>🔍 Decode Admin</h1>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#888' }}>Auto-refreshes every 30 seconds</p>
+            <h1 style={{ fontSize:22, fontWeight:800, color:'#fff' }}>🔍 Decode Admin</h1>
+            <p style={{ fontSize:13, color:'#555', marginTop:4 }}>Auto-refreshes every 30 seconds</p>
           </div>
-          <button onClick={fetchStats} style={{ backgroundColor: ACCENT, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer', minHeight: 48 }}>Refresh now</button>
+          <button className="btn-press" onClick={() => { setLoading(true); fetchStats(); }} style={{ background:C.primary, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', fontSize:14, fontWeight:600, cursor:'pointer', minHeight:44 }}>Refresh</button>
         </div>
-        {loading ? <p style={{ color: '#888' }}>Loading stats...</p> : !data ? <p style={{ color: '#ff6b6b' }}>Could not load stats.</p> : (
+        {loading ? <p style={{ color:'#555' }}>Loading...</p> : !data ? <p style={{ color:'#f66' }}>Could not load stats.</p> : (
           <>
-            <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
-              {[
-                { label: 'Decodes Today', value: data.decodesToday, color: '#3B82F6' },
-                { label: 'Follow-ups Today', value: data.followupsToday, color: '#10B981' },
-                { label: 'Waitlist Signups', value: data.waitlistCount, color: '#F59E0B' },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={cardStyle}>
-                  <div style={{ fontSize: 42, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-                  <div style={{ fontSize: 14, color: '#aaa', marginTop: 8 }}>{label}</div>
+            <div style={{ display:'flex', gap:14, marginBottom:24, flexWrap:'wrap' }}>
+              {[['Decodes Today', data.decodesToday, C.primary],['Follow-ups Today', data.followupsToday, C.success],['Waitlist Signups', data.waitlistCount, C.warning]].map(([lbl, val, col]) => (
+                <div key={lbl} style={{ flex:1, minWidth:140, background:'#1a1a2e', borderRadius:14, padding:'22px 24px' }}>
+                  <div style={{ fontSize:40, fontWeight:800, color:col, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{val}</div>
+                  <div style={{ fontSize:13, color:'#666', marginTop:8 }}>{lbl}</div>
                 </div>
               ))}
             </div>
-            <div style={{ backgroundColor: '#1e1e2e', borderRadius: 16, padding: 24 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#aaa', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '1px' }}>Last 10 Decodes</div>
-              {data.lastDecodes.length === 0 ? <p style={{ color: '#555', fontSize: 14 }}>No decodes yet today.</p> : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>{['Time', 'Document Type', 'Language'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', fontSize: 12, color: '#666', fontWeight: 600, paddingBottom: 12, borderBottom: '1px solid #2a2a3e' }}>{h}</th>
-                  ))}</tr></thead>
-                  <tbody>{data.lastDecodes.map((d, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #1a1a2e' }}>
-                      <td style={{ padding: '12px 0', fontSize: 13, color: '#888' }}>{new Date(d.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
-                      <td style={{ padding: '12px 8px', fontSize: 13, color: '#ddd' }}><span style={{ backgroundColor: '#2a2a4e', padding: '3px 10px', borderRadius: 20, fontSize: 12 }}>{d.docType}</span></td>
-                      <td style={{ padding: '12px 0', fontSize: 13, color: '#ddd' }}>{d.language}</td>
+            <div style={{ background:'#1a1a2e', borderRadius:14, padding:24 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:16 }}>Last 10 Decodes</div>
+              {data.lastDecodes.length === 0 ? <p style={{ color:'#444', fontSize:14 }}>No decodes yet today.</p> : (
+                <table style={{ width:'100%', borderCollapse:'collapse', fontFamily:'monospace' }}>
+                  <thead><tr>{['Time','Type','Language'].map(h => <th key={h} style={{ textAlign:'left', fontSize:11, color:'#444', fontWeight:600, paddingBottom:10, borderBottom:'1px solid #222' }}>{h}</th>)}</tr></thead>
+                  <tbody>{data.lastDecodes.map((d,i) => (
+                    <tr key={i} style={{ borderBottom:'1px solid #151520' }}>
+                      <td style={{ padding:'10px 0', fontSize:12, color:'#666' }}>{new Date(d.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</td>
+                      <td style={{ padding:'10px 8px' }}><span style={{ background:'#252540', color:'#aaa', padding:'3px 10px', borderRadius:20, fontSize:11 }}>{d.docType}</span></td>
+                      <td style={{ padding:'10px 0', fontSize:12, color:'#aaa' }}>{d.language}</td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -253,7 +179,7 @@ function AdminPage() {
   );
 }
 
-/* ─── Upgrade Screen ─── */
+/* ─── Upgrade Overlay ─── */
 function UpgradeScreen({ onBack }) {
   const [phone, setPhone] = useState('');
   const [paying, setPaying] = useState(false);
@@ -261,94 +187,89 @@ function UpgradeScreen({ onBack }) {
 
   async function handleUpgrade() {
     if (!phone.trim() || phone.trim().length < 10) { setPhoneError('Please enter a valid 10-digit mobile number.'); return; }
-    setPhoneError('');
-    setPaying(true);
+    setPhoneError(''); setPaying(true);
     let keyId;
-    try {
-      const res = await fetch('/api/payment/razorpay-key');
-      const data = await res.json();
-      keyId = data.key_id;
-    } catch { alert('Could not reach payment server. Please try again.'); setPaying(false); return; }
-    if (!keyId) { alert('Payment is not configured yet.'); setPaying(false); return; }
-    const loaded = await loadRazorpayScript();
-    if (!loaded) { alert('Could not load payment gateway.'); setPaying(false); return; }
-    const options = {
-      key: keyId, amount: 19900, currency: 'INR', name: 'Decode',
-      description: 'Pro Monthly - Unlimited Decodes', theme: { color: ACCENT },
-      prefill: { contact: phone },
-      handler: async function (response) {
-        try { await fetch('/api/payment/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, razorpay_payment_id: response.razorpay_payment_id }) }); } catch { /* best-effort */ }
-        localStorage.setItem('decode_is_paid', 'true');
-        localStorage.setItem('decode_count', '0');
-        alert('Welcome to Decode Pro! Unlimited decodes unlocked.');
-        window.location.reload();
+    try { const r = await fetch('/api/payment/razorpay-key'); keyId = (await r.json()).key_id; } catch { alert('Could not reach payment server.'); setPaying(false); return; }
+    if (!keyId) { alert('Payment not configured.'); setPaying(false); return; }
+    if (!await loadRazorpayScript()) { alert('Could not load payment gateway.'); setPaying(false); return; }
+    new window.Razorpay({
+      key:keyId, amount:19900, currency:'INR', name:'Decode', description:'Pro Monthly',
+      theme:{color:C.primary}, prefill:{contact:phone},
+      handler: async (resp) => {
+        try { await fetch('/api/payment/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,razorpay_payment_id:resp.razorpay_payment_id})}); } catch {}
+        localStorage.setItem('decode_is_paid','true'); localStorage.setItem('decode_count','0');
+        alert('Welcome to Decode Pro!'); window.location.reload();
       },
-      modal: { ondismiss: () => setPaying(false) },
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.open();
+      modal:{ondismiss:()=>setPaying(false)},
+    }).open();
     setPaying(false);
   }
 
-  const freeFeatures = ['3 decodes per day', 'English, Hindi, Bengali', 'Image upload', '—'];
-  const proFeatures = ['Unlimited decodes', 'All languages', 'Image upload', 'Full decode history', 'Follow-up questions', 'Read aloud'];
-
   return (
-    <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: '28px 24px', boxShadow: '0 2px 20px rgba(83,74,183,0.1)' }}>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 36, marginBottom: 10 }}>🔓</div>
-        <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, color: '#1a1a2e' }}>Unlock Decode Pro</h2>
-        <p style={{ margin: '0 0 10px', fontSize: 14, color: '#666' }}>Join thousands of Indians who understand their documents</p>
-        <div style={{ fontSize: 14, color: '#F59E0B', fontWeight: 600 }}>★★★★★ Trusted by patients, tenants &amp; families</div>
-      </div>
+    <div style={{ position:'fixed', inset:0, background:'rgba(26,26,46,0.7)', backdropFilter:'blur(8px)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, animation:'fadeIn 0.2s ease' }}>
+      <div style={{ background:C.surface, borderRadius:20, width:'min(480px,100%)', padding:'28px 24px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', maxHeight:'90vh', overflowY:'auto', position:'relative' }}>
+        <button className="btn-press" onClick={onBack} style={{ position:'absolute', top:16, right:16, background:'none', border:'none', fontSize:20, cursor:'pointer', color:C.textMuted, lineHeight:1, width:32, height:32 }}>✕</button>
 
-      {/* Pricing cards — always stacked vertically for mobile */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-        <div style={{ border: '2px solid #e8e6f0', borderRadius: 14, padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#444' }}>Free — ₹0/month</div>
-            <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {freeFeatures.map((f, i) => (
-                <span key={i} style={{ fontSize: 13, color: f === '—' ? '#ccc' : '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ color: f === '—' ? '#ddd' : '#10B981' }}>{f === '—' ? '✗' : '✓'}</span>
-                  {f === '—' ? 'No history' : f}
+        <div style={{ textAlign:'center', marginBottom:24 }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>🔓</div>
+          <h2 style={{ fontSize:22, fontWeight:800, color:C.text, marginBottom:8 }}>Unlock Decode Pro</h2>
+          <p style={{ fontSize:14, color:C.textSecondary, marginBottom:10 }}>Join thousands of Indians who understand their documents</p>
+          <div style={{ fontSize:13, color:C.warning, fontWeight:600 }}>★★★★★ Trusted by patients, tenants &amp; families</div>
+        </div>
+
+        {/* Cards */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:24 }}>
+          {/* Free */}
+          <div style={{ border:`1.5px solid ${C.border}`, borderRadius:14, padding:'14px 18px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <span style={{ fontSize:16, fontWeight:700, color:C.textSecondary }}>Free</span>
+              <span style={{ fontSize:20, fontWeight:800, color:C.text }}>₹0<span style={{ fontSize:13, fontWeight:400, color:C.textMuted }}>/mo</span></span>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {['3 decodes/day','3 languages','Image upload'].map(f=>(
+                <span key={f} style={{ fontSize:12, color:C.textSecondary, display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ color:C.success }}>✓</span>{f}
+                </span>
+              ))}
+              <span style={{ fontSize:12, color:'#ddd', display:'flex', alignItems:'center', gap:4 }}><span style={{ color:'#ddd' }}>✗</span>No history</span>
+            </div>
+          </div>
+          {/* Pro */}
+          <div style={{ border:`2px solid ${C.primary}`, borderRadius:14, padding:'14px 18px', background:C.surface2, position:'relative', overflow:'hidden', boxShadow:`0 4px 20px rgba(83,74,183,0.15)` }}>
+            <div style={{ position:'absolute', top:10, right:-22, background:C.primary, color:'#fff', fontSize:9, fontWeight:800, padding:'4px 28px', transform:'rotate(35deg)', letterSpacing:'0.5px' }}>POPULAR</div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <span style={{ fontSize:16, fontWeight:700, color:C.primary }}>Pro</span>
+              <span style={{ fontSize:20, fontWeight:800, color:C.text }}>₹199<span style={{ fontSize:13, fontWeight:400, color:C.textMuted }}>/mo</span></span>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {['Unlimited decodes','All languages','Image upload','Decode history','Follow-up chat','Read aloud'].map(f=>(
+                <span key={f} style={{ fontSize:12, color:C.text, display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ color:C.success }}>✓</span>{f}
                 </span>
               ))}
             </div>
           </div>
         </div>
-        <div style={{ border: `2px solid ${ACCENT}`, borderRadius: 14, padding: '16px 18px', backgroundColor: '#faf9ff', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 10, right: -20, backgroundColor: ACCENT, color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 26px', transform: 'rotate(35deg)' }}>POPULAR</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: ACCENT }}>Pro — ₹199/month</div>
-          <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {proFeatures.map((f, i) => (
-              <span key={i} style={{ fontSize: 13, color: '#333', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: '#10B981' }}>✓</span> {f}
-              </span>
-            ))}
-          </div>
+
+        <div style={{ marginBottom:14 }}>
+          <label style={{ fontSize:13, fontWeight:600, color:C.text, display:'block', marginBottom:8 }}>Mobile number (for your account)</label>
+          <input type="tel" value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="10-digit mobile number"
+            style={{ width:'100%', height:48, padding:'0 14px', borderRadius:R.input, border:`1.5px solid ${phoneError?C.danger:C.border}`, fontSize:16, color:C.text, outline:'none', background:C.surface }} />
+          {phoneError && <p style={{ marginTop:6, fontSize:13, color:C.danger }}>{phoneError}</p>}
         </div>
-      </div>
 
-      <div style={{ marginBottom: 14 }}>
-        <label style={{ fontSize: 14, fontWeight: 600, color: '#444', display: 'block', marginBottom: 8 }}>Mobile number (for your account)</label>
-        <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile number"
-          style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `2px solid ${phoneError ? '#ffd0d0' : '#e8e6f0'}`, fontSize: 16, color: '#1a1a2e', outline: 'none', fontFamily: 'inherit', minHeight: 48 }} />
-        {phoneError && <p style={{ margin: '6px 0 0', fontSize: 14, color: '#cc3333' }}>{phoneError}</p>}
-      </div>
-
-      <button onClick={handleUpgrade} disabled={paying} style={{ width: '100%', padding: '15px 0', backgroundColor: paying ? '#9992d4' : ACCENT, color: '#fff', border: 'none', borderRadius: 12, fontSize: 17, fontWeight: 700, cursor: paying ? 'not-allowed' : 'pointer', marginBottom: 14, minHeight: 56 }}>
-        {paying ? 'Opening payment...' : 'Upgrade to Pro — ₹199/month'}
-      </button>
-      <div style={{ textAlign: 'center' }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#999', fontSize: 14, cursor: 'pointer', textDecoration: 'underline', minHeight: 44, padding: '8px 0' }}>Back to free version</button>
+        <button className="btn-press" onClick={handleUpgrade} disabled={paying}
+          style={{ width:'100%', height:52, background:paying?'#9992d4':GRAD, color:'#fff', border:'none', borderRadius:14, fontSize:16, fontWeight:700, cursor:paying?'not-allowed':'pointer', boxShadow:`0 4px 20px ${C.primaryShadow}`, marginBottom:12, display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
+          {paying ? <><Spinner />Opening payment...</> : '🔒 Upgrade to Pro — ₹199/month'}
+        </button>
+        <p style={{ textAlign:'center', fontSize:12, color:C.textMuted }}>Cancel anytime • Secure via Razorpay</p>
       </div>
     </div>
   );
 }
 
-/* ─── History Screen ─── */
-function HistoryScreen({ isPaid, onBack }) {
+/* ─── History Panel ─── */
+function HistoryPanel({ isPaid, onClose }) {
   const [history, setHistory] = useState(getHistory());
   const [selected, setSelected] = useState(null);
   const visible = isPaid ? history : history.slice(0, 5);
@@ -357,68 +278,73 @@ function HistoryScreen({ isPaid, onBack }) {
     if (window.confirm('Clear all decode history?')) { clearHistory(); setHistory([]); }
   }
 
-  if (selected) {
-    return (
-      <div>
-        <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: ACCENT, fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '0 0 16px', display: 'flex', alignItems: 'center', gap: 6, minHeight: 48 }}>← Back to history</button>
-        <div style={{ fontSize: 13, color: '#aaa', marginBottom: 4 }}>{selected.docType} · {timeAgo(selected.id)}</div>
-        <div style={{ fontSize: 14, color: '#666', marginBottom: 20, fontStyle: 'italic' }}>{selected.preview}</div>
-        {[
-          { key: 'what_is_this', label: 'WHAT IS THIS?', color: CARD_COLORS.what_is_this },
-          { key: 'what_it_means_for_you', label: 'WHAT IT MEANS FOR YOU', color: CARD_COLORS.what_it_means_for_you },
-          { key: 'what_to_do_next', label: 'WHAT TO DO NEXT', color: CARD_COLORS.what_to_do_next },
-        ].map(({ key, label, color }) => (
-          <div key={key} style={{ backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14, boxShadow: '0 2px 16px rgba(83,74,183,0.07)', borderLeft: `4px solid ${color}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1.2px', marginBottom: 10 }}>{label}</div>
-            {key === 'what_to_do_next' ? (
-              <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
-                {(selected.result.what_to_do_next || []).map((step, i) => <li key={i} style={{ fontSize: 15, color: '#1a1a2e', lineHeight: 1.65, marginBottom: 8 }}>{step}</li>)}
-              </ol>
-            ) : <p style={{ margin: 0, fontSize: 15, color: '#1a1a2e', lineHeight: 1.65 }}>{selected.result[key]}</p>}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: ACCENT, fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: 0, minHeight: 48, display: 'flex', alignItems: 'center' }}>← Back</button>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e' }}>Decode History</div>
-        <div style={{ width: 60 }} />
-      </div>
-      {!isPaid && history.length > 5 && (
-        <div style={{ backgroundColor: '#fff8e6', border: '1px solid #ffe08a', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#92650a' }}>
-          Showing last 5. Upgrade to Pro to see all {history.length}.
+    <div style={{ position:'fixed', inset:0, zIndex:1500, display:'flex', justifyContent:'flex-end' }}>
+      <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(26,26,46,0.4)', animation:'fadeIn 0.2s ease' }} />
+      <div style={{ position:'relative', width:'min(460px,100%)', background:C.surface, height:'100%', overflowY:'auto', animation:'slideInRight 0.3s ease', padding:'24px 20px', display:'flex', flexDirection:'column' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
+          <h2 style={{ fontSize:18, fontWeight:700, color:C.text }}>
+            {selected ? '← Result' : 'Decode History'}
+          </h2>
+          <button className="btn-press" onClick={selected?()=>setSelected(null):onClose} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:C.textMuted, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {selected ? '←' : '✕'}
+          </button>
         </div>
-      )}
-      {visible.length === 0 ? (
-        <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '40px 24px', textAlign: 'center', boxShadow: '0 2px 16px rgba(83,74,183,0.07)' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-          <p style={{ margin: 0, fontSize: 15, color: '#999' }}>No decodes yet. Decode your first document!</p>
-        </div>
-      ) : (
-        <div>
-          {visible.map((item) => (
-            <div key={item.id} onClick={() => setSelected(item)} style={{ backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 2px 12px rgba(83,74,183,0.06)', cursor: 'pointer', borderLeft: `3px solid ${ACCENT}` }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(83,74,183,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(83,74,183,0.06)'}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ backgroundColor: '#f0eeff', color: ACCENT, fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{item.docType}</span>
-                <span style={{ fontSize: 13, color: '#aaa' }}>{timeAgo(item.id)}</span>
+
+        {selected ? (
+          <div>
+            <div style={{ fontSize:12, color:C.textMuted, marginBottom:4 }}>{selected.docType} · {timeAgo(selected.id)}</div>
+            <p style={{ fontSize:14, color:C.textSecondary, marginBottom:20, fontStyle:'italic', lineHeight:1.5 }}>{selected.preview}</p>
+            {[
+              {key:'what_is_this',label:'WHAT IS THIS?',color:CARD_COLORS.what_is_this},
+              {key:'what_it_means_for_you',label:'WHAT IT MEANS FOR YOU',color:CARD_COLORS.what_it_means_for_you},
+              {key:'what_to_do_next',label:'WHAT TO DO NEXT',color:CARD_COLORS.what_to_do_next},
+            ].map(({key,label,color})=>(
+              <div key={key} style={{ background:C.surface, border:`1px solid ${C.border}`, borderTop:`3px solid ${color}`, borderRadius:R.card, padding:18, marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:700, color, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:10 }}>{label}</div>
+                {key==='what_to_do_next' ? (
+                  <ol style={{ paddingLeft:20 }}>{(selected.result.what_to_do_next||[]).map((s,i)=><li key={i} style={{ fontSize:15,color:C.text,lineHeight:1.7,marginBottom:6 }}>{s}</li>)}</ol>
+                ) : <p style={{ fontSize:15,color:C.text,lineHeight:1.7 }}>{selected.result[key]}</p>}
               </div>
-              <p style={{ margin: 0, fontSize: 14, color: '#444', lineHeight: 1.5 }}>{item.preview}</p>
-            </div>
-          ))}
-          {visible.length > 0 && (
-            <button onClick={handleClear} style={{ width: '100%', padding: '14px 0', marginTop: 8, backgroundColor: 'transparent', color: '#cc3333', border: '1px solid #ffd0d0', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', minHeight: 48 }}>
-              Clear history
-            </button>
-          )}
-        </div>
-      )}
+            ))}
+          </div>
+        ) : (
+          <>
+            {!isPaid && history.length > 5 && (
+              <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#92400e' }}>
+                Showing last 5. Upgrade to Pro to see all {history.length}.
+              </div>
+            )}
+            {visible.length === 0 ? (
+              <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center' }}>
+                <div style={{ fontSize:48, marginBottom:16 }}>📄</div>
+                <p style={{ fontSize:15, color:C.textMuted, lineHeight:1.6 }}>No decodes yet.<br/>Decode your first document!</p>
+              </div>
+            ) : (
+              <div style={{ flex:1 }}>
+                {visible.map(item => {
+                  const docColor = DOC_TYPE_COLORS[item.docType] || C.textMuted;
+                  return (
+                    <div key={item.id} className="card-hover" onClick={()=>setSelected(item)}
+                      style={{ background:C.surface, border:`1px solid ${C.border}`, borderLeft:`3px solid ${docColor}`, borderRadius:R.card, padding:'14px 16px', marginBottom:10, cursor:'pointer', transition:'all 0.2s' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <span style={{ background:`${docColor}18`, color:docColor, fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:R.pill }}>{item.docType}</span>
+                        <span style={{ fontSize:12, color:C.textMuted }}>{timeAgo(item.id)}</span>
+                      </div>
+                      <p style={{ fontSize:13, color:C.textSecondary, lineHeight:1.5 }}>{item.preview}</p>
+                    </div>
+                  );
+                })}
+                {visible.length > 0 && (
+                  <button className="btn-press" onClick={handleClear} style={{ width:'100%', padding:'12px 0', background:'transparent', color:C.danger, border:`1px solid ${C.danger}33`, borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer', marginTop:8, minHeight:48 }}>
+                    Clear history
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -430,31 +356,31 @@ function WaitlistBar({ onDismiss }) {
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
-    if (!phone || phone.length < 10) return;
+    if (phone.length < 10) return;
     setSubmitting(true);
     try {
-      await fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
-      const nums = JSON.parse(localStorage.getItem('waitlist_numbers') || '[]');
-      if (!nums.includes(phone)) { nums.push(phone); localStorage.setItem('waitlist_numbers', JSON.stringify(nums)); }
-    } catch { /* best-effort */ }
-    setSubmitted(true);
-    setSubmitting(false);
+      await fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
+      const n=JSON.parse(localStorage.getItem('waitlist_numbers')||'[]'); if(!n.includes(phone)){n.push(phone);localStorage.setItem('waitlist_numbers',JSON.stringify(n));}
+    } catch {}
+    setSubmitted(true); setSubmitting(false);
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: ACCENT, color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', boxShadow: '0 -4px 20px rgba(83,74,183,0.3)', animation: 'slideUp 0.4s ease both', zIndex: 1000 }}>
+    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:GRAD, color:'#fff', padding:'14px 20px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', boxShadow:'0 -4px 24px rgba(83,74,183,0.4)', animation:'slideUp 0.4s ease both', zIndex:1000 }}>
       {submitted ? (
-        <div style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>Thanks! We'll keep you updated 🙏</div>
+        <div style={{ flex:1, fontSize:15, fontWeight:600 }}>Thanks! We'll keep you updated 🙏</div>
       ) : (
         <>
-          <div style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 160 }}>Love Decode? Get notified about new features</div>
-          <input value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Mobile number" style={{ padding: '10px 12px', borderRadius: 8, border: 'none', fontSize: 16, color: '#1a1a2e', outline: 'none', width: 160, flexShrink: 0, minHeight: 44 }} />
-          <button onClick={handleSubmit} disabled={submitting || phone.length < 10} style={{ backgroundColor: '#fff', color: ACCENT, border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: phone.length < 10 ? 'default' : 'pointer', flexShrink: 0, opacity: phone.length < 10 ? 0.6 : 1, minHeight: 44 }}>
-            {submitting ? '...' : 'Notify me'}
+          <div style={{ flex:1, fontSize:14, fontWeight:600, minWidth:160 }}>Love Decode? Get notified about new features</div>
+          <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="Mobile number"
+            style={{ height:44, padding:'0 14px', borderRadius:10, border:'1.5px solid rgba(255,255,255,0.4)', fontSize:16, color:C.text, outline:'none', width:160, flexShrink:0, background:'rgba(255,255,255,0.95)' }} />
+          <button className="btn-press" onClick={handleSubmit} disabled={submitting||phone.length<10}
+            style={{ height:44, padding:'0 18px', background:'rgba(255,255,255,0.95)', color:C.primary, border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:phone.length<10?'default':'pointer', flexShrink:0, opacity:phone.length<10?0.6:1 }}>
+            {submitting?'...':'Notify me'}
           </button>
         </>
       )}
-      <button onClick={onDismiss} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 20, cursor: 'pointer', padding: '0 4px', flexShrink: 0, lineHeight: 1, minHeight: 44, display: 'flex', alignItems: 'center' }}>✕</button>
+      <button onClick={onDismiss} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.6)', fontSize:20, cursor:'pointer', lineHeight:1, minWidth:28, height:44, display:'flex', alignItems:'center' }}>✕</button>
     </div>
   );
 }
@@ -468,10 +394,12 @@ export default function App() {
   const [text, setText] = useState('');
   const [imageBase64, setImageBase64] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  const [imageFileName, setImageFileName] = useState('');
   const [loading, setLoading] = useState(false);
   const [slowWarning, setSlowWarning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [errorShake, setErrorShake] = useState(false);
   const [failCount, setFailCount] = useState(0);
   const [usageCount, setUsageCount] = useState(getUsageCount());
   const [limitReached, setLimitReached] = useState(false);
@@ -489,486 +417,451 @@ export default function App() {
   const [referralCopied, setReferralCopied] = useState(false);
   const [resultCopied, setResultCopied] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(null);
+  const [activeTab, setActiveTab] = useState('home');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const fileInputRef = useRef(null);
   const slowTimerRef = useRef(null);
+  const chatEndRef = useRef(null);
 
   useEffect(() => {
-    const count = getUsageCount();
-    setUsageCount(count);
-    const paid = getIsPaid();
-    setIsPaid(paid);
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  useEffect(() => {
+    const count = getUsageCount(); setUsageCount(count);
+    const paid = getIsPaid(); setIsPaid(paid);
     if (count >= getDailyLimit() && !paid) setLimitReached(true);
-
-    const dismissed = localStorage.getItem('waitlist_dismissed') === 'true';
-    if (!dismissed) {
-      const hasDecoded = count > 0 || getHistory().length > 0;
-      if (hasDecoded) setShowWaitlist(true);
-    }
-
-    if (!localStorage.getItem('seen_onboarding')) {
-      setOnboardingStep(0);
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get('ref');
+    if (!localStorage.getItem('waitlist_dismissed') && (count > 0 || getHistory().length > 0)) setShowWaitlist(true);
+    if (!localStorage.getItem('seen_onboarding')) setOnboardingStep(0);
+    const ref = new URLSearchParams(window.location.search).get('ref');
     if (ref) {
       try {
-        const usedRefs = JSON.parse(localStorage.getItem('used_refs') || '[]');
-        if (!usedRefs.includes(ref)) {
-          addBonus();
-          usedRefs.push(ref);
-          localStorage.setItem('used_refs', JSON.stringify(usedRefs));
-          setReferralToast(true);
-          setTimeout(() => setReferralToast(false), 5000);
-        }
-      } catch { /* ignore */ }
-      window.history.replaceState({}, '', window.location.pathname);
+        const used = JSON.parse(localStorage.getItem('used_refs')||'[]');
+        if (!used.includes(ref)) { addBonus(); used.push(ref); localStorage.setItem('used_refs',JSON.stringify(used)); setReferralToast(true); setTimeout(()=>setReferralToast(false),5000); }
+      } catch {}
+      window.history.replaceState({},'' ,window.location.pathname);
     }
   }, []);
 
   useEffect(() => {
     if (result || text) return;
-    const timer = setInterval(() => setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length), 3000);
-    return () => clearInterval(timer);
+    const t = setInterval(()=>setPlaceholderIdx(i=>(i+1)%PLACEHOLDERS.length),3000);
+    return ()=>clearInterval(t);
   }, [result, text]);
 
   useEffect(() => {
-    if (result) {
-      document.title = `✓ Decoded — ${docType} | Decode`;
-    } else {
-      document.title = 'Decode — Understand Any Document in Hindi, Bengali & English';
-    }
+    document.title = result ? `✓ Decoded — ${docType} | Decode` : 'Decode — Understand Any Document in Hindi, Bengali & English';
   }, [result, docType]);
 
+  useEffect(() => { chatEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [followups]);
+
   function handleImageChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]; if (!file) return;
+    setImageFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target.result;
-      setImagePreview(dataUrl);
-      setImageBase64(dataUrl.split(',')[1]);
-    };
+    reader.onload = ev => { const d = ev.target.result; setImagePreview(d); setImageBase64(d.split(',')[1]); };
     reader.readAsDataURL(file);
   }
 
   function handleRemoveImage() {
-    setImageBase64(''); setImagePreview('');
+    setImageBase64(''); setImagePreview(''); setImageFileName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   async function handleDecode() {
-    if (!imageBase64 && !text.trim()) { setError('Please paste text or upload a document image.'); return; }
-
-    if (!navigator.onLine) {
-      setError('No internet connection. Please check your connection and try again.');
-      return;
-    }
-
-    const currentCount = getUsageCount();
-    const limit = getDailyLimit();
-    if (currentCount >= limit && !isPaid) { setLimitReached(true); setShowUpgrade(true); return; }
-
+    if (!imageBase64 && !text.trim()) { triggerError('Please paste text or upload a document image.'); return; }
+    if (!navigator.onLine) { triggerError('No internet connection. Please check your connection and try again.'); return; }
+    const count = getUsageCount();
+    if (count >= getDailyLimit() && !isPaid) { setLimitReached(true); setShowUpgrade(true); return; }
     setLoading(true); setError(''); setResult(null); setSlowWarning(false);
-
-    slowTimerRef.current = setTimeout(() => setSlowWarning(true), 15000);
-
+    slowTimerRef.current = setTimeout(()=>setSlowWarning(true), 15000);
     try {
-      const res = await fetch('/api/decode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-usage-count': String(currentCount), 'x-is-paid': String(isPaid), 'x-bonus': String(getBonus()) },
-        body: JSON.stringify({ text, imageBase64, language, docType }),
+      const res = await fetch('/api/decode',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-usage-count':String(count),'x-is-paid':String(isPaid),'x-bonus':String(getBonus())},
+        body:JSON.stringify({text,imageBase64,language,docType}),
       });
       clearTimeout(slowTimerRef.current);
-
-      if (res.status === 402) { setLimitReached(true); setShowUpgrade(true); setLoading(false); return; }
+      if (res.status===402) { setLimitReached(true); setShowUpgrade(true); setLoading(false); return; }
       const data = await res.json();
-      if (!data.success) {
-        const newFail = failCount + 1;
-        setFailCount(newFail);
-        if (newFail >= 3) {
-          setError('Our AI is busy right now. Try again in a few minutes.');
-        } else {
-          setError(data.error || 'Something went wrong. Please try again.');
-        }
-        setLoading(false); return;
-      }
+      if (!data.success) { const nf=failCount+1; setFailCount(nf); triggerError(nf>=3?'Our AI is busy right now. Try again in a few minutes.':(data.error||'Something went wrong.')); setLoading(false); return; }
       setFailCount(0);
-      if (!isPaid) {
-        const newCount = incrementUsage();
-        setUsageCount(newCount);
-        if (newCount >= getDailyLimit()) setLimitReached(true);
-      }
-      const preview = text.trim().slice(0, 60) + (text.trim().length > 60 ? '...' : '');
-      saveToHistory({ id: Date.now(), docType, language, preview: preview || `[Image] ${docType}`, result: data.result });
+      if (!isPaid) { const nc=incrementUsage(); setUsageCount(nc); if(nc>=getDailyLimit()) setLimitReached(true); }
+      const preview = text.trim().slice(0,60)+(text.trim().length>60?'...':'');
+      saveToHistory({id:Date.now(),docType,language,preview:preview||`[Image] ${docType}`,result:data.result});
       setResult(data.result);
-      setReferralLink(window.location.origin + '?ref=' + btoa(String(Date.now())));
-      const dismissed = localStorage.getItem('waitlist_dismissed') === 'true';
-      if (!dismissed) setShowWaitlist(true);
-    } catch (err) {
+      setReferralLink(window.location.origin+'?ref='+btoa(String(Date.now())));
+      if (!localStorage.getItem('waitlist_dismissed')) setShowWaitlist(true);
+    } catch {
       clearTimeout(slowTimerRef.current);
-      if (!navigator.onLine) {
-        setError('No internet connection. Please check your connection and try again.');
-      } else {
-        const newFail = failCount + 1;
-        setFailCount(newFail);
-        setError(newFail >= 3 ? 'Our AI is busy right now. Try again in a few minutes.' : 'Could not connect to server. Please try again.');
-      }
+      const nf=failCount+1; setFailCount(nf);
+      triggerError(!navigator.onLine?'No internet connection. Please check your connection and try again.':nf>=3?'Our AI is busy right now. Try again in a few minutes.':'Could not connect to server. Please try again.');
     }
     setLoading(false);
   }
 
+  function triggerError(msg) {
+    setError(msg); setErrorShake(true); setTimeout(()=>setErrorShake(false),600);
+  }
+
   function handleReset() {
     clearTimeout(slowTimerRef.current);
-    setResult(null); setError(''); setText('');
-    setImageBase64(''); setImagePreview('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    const paid = getIsPaid();
-    setIsPaid(paid);
-    setLimitReached(getUsageCount() >= getDailyLimit() && !paid);
-    setShowUpgrade(false);
-    setFollowups([]); setFollowupQ('');
-    setReferralCopied(false); setReferralLink('');
-    setResultCopied(false); setSlowWarning(false);
-    window.speechSynthesis && window.speechSynthesis.cancel();
-    setSpeaking(false);
+    setResult(null); setError(''); setText(''); setImageBase64(''); setImagePreview(''); setImageFileName('');
+    if (fileInputRef.current) fileInputRef.current.value='';
+    const paid=getIsPaid(); setIsPaid(paid);
+    setLimitReached(getUsageCount()>=getDailyLimit()&&!paid);
+    setShowUpgrade(false); setFollowups([]); setFollowupQ('');
+    setReferralCopied(false); setReferralLink(''); setResultCopied(false); setSlowWarning(false);
+    window.speechSynthesis?.cancel(); setSpeaking(false); setActiveTab('home');
   }
 
   async function handleFollowup() {
     if (!followupQ.trim()) return;
-    const q = followupQ.trim();
-    setFollowupQ('');
-    setFollowupLoading(true);
+    const q = followupQ.trim(); setFollowupQ(''); setFollowupLoading(true);
     try {
-      const res = await fetch('/api/decode/followup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, originalText: text, language }) });
-      const data = await res.json();
-      setFollowups(prev => [...prev, { q, a: data.success ? data.answer : data.error }]);
-    } catch {
-      setFollowups(prev => [...prev, { q, a: 'Could not get an answer. Please try again.' }]);
-    }
+      const r = await fetch('/api/decode/followup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,originalText:text,language})});
+      const d = await r.json();
+      setFollowups(p=>[...p,{q,a:d.success?d.answer:d.error}]);
+    } catch { setFollowups(p=>[...p,{q,a:'Could not get an answer. Please try again.'}]); }
     setFollowupLoading(false);
   }
 
   function handleReadAloud() {
     if (!window.speechSynthesis) return;
     if (speaking) { window.speechSynthesis.cancel(); setSpeaking(false); return; }
-    const langMap = { Hindi: 'hi-IN', Bengali: 'bn-IN', English: 'en-IN' };
-    const fullText = [`What is this? ${result.what_is_this}`, `What it means for you. ${result.what_it_means_for_you}`, `What to do next. ${(result.what_to_do_next || []).join('. ')}`].join('. ');
-    const utterance = new SpeechSynthesisUtterance(fullText);
-    utterance.lang = langMap[language] || 'en-IN';
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-    setSpeaking(true);
-  }
-
-  function handleWhatsAppShare() {
-    const msg = `I just decoded a confusing document in seconds using Decode! 🔍\n\nIt explained everything in simple ${language}.\n\nTry it free: ${window.location.origin}`;
-    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    const langMap={Hindi:'hi-IN',Bengali:'bn-IN',English:'en-IN'};
+    const txt=[`What is this? ${result.what_is_this}`,`What it means for you. ${result.what_it_means_for_you}`,`What to do next. ${(result.what_to_do_next||[]).join('. ')}`].join('. ');
+    const u=new SpeechSynthesisUtterance(txt); u.lang=langMap[language]||'en-IN';
+    u.onend=()=>setSpeaking(false); u.onerror=()=>setSpeaking(false);
+    window.speechSynthesis.speak(u); setSpeaking(true);
   }
 
   function handleCopyResult() {
-    const steps = (result.what_to_do_next || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
-    const txt = `WHAT IS THIS?\n${result.what_is_this}\n\nWHAT IT MEANS FOR YOU:\n${result.what_it_means_for_you}\n\nWHAT TO DO NEXT:\n${steps}\n\nDecoded by Decode — decode.app`;
-    navigator.clipboard.writeText(txt).then(() => {
-      setResultCopied(true);
-      setTimeout(() => setResultCopied(false), 2500);
-    });
+    const steps=(result.what_to_do_next||[]).map((s,i)=>`${i+1}. ${s}`).join('\n');
+    navigator.clipboard.writeText(`WHAT IS THIS?\n${result.what_is_this}\n\nWHAT IT MEANS FOR YOU:\n${result.what_it_means_for_you}\n\nWHAT TO DO NEXT:\n${steps}\n\nDecoded by Decode — decode.app`).then(()=>{setResultCopied(true);setTimeout(()=>setResultCopied(false),2500);});
+  }
+
+  function handleWhatsAppShare() {
+    window.open('https://wa.me/?text='+encodeURIComponent(`I just decoded a confusing document with Decode! 🔍\nIt explained everything in simple ${language}.\n\nTry it free: ${window.location.origin}`),'_blank');
   }
 
   function handleCopyReferral() {
-    navigator.clipboard.writeText(referralLink).then(() => {
-      setReferralCopied(true);
-      setTimeout(() => setReferralCopied(false), 2500);
-    });
-  }
-
-  function dismissWaitlist() {
-    localStorage.setItem('waitlist_dismissed', 'true');
-    setShowWaitlist(false);
+    navigator.clipboard.writeText(referralLink).then(()=>{setReferralCopied(true);setTimeout(()=>setReferralCopied(false),2500);});
   }
 
   function advanceOnboarding() {
-    if (onboardingStep >= 2) {
-      localStorage.setItem('seen_onboarding', 'true');
-      setOnboardingStep(null);
-    } else {
-      setOnboardingStep(s => s + 1);
-    }
+    if (onboardingStep>=2) { localStorage.setItem('seen_onboarding','true'); setOnboardingStep(null); }
+    else setOnboardingStep(s=>s+1);
   }
 
-  function skipOnboarding() {
-    localStorage.setItem('seen_onboarding', 'true');
-    setOnboardingStep(null);
-  }
+  function skipOnboarding() { localStorage.setItem('seen_onboarding','true'); setOnboardingStep(null); }
 
   const remaining = getDailyLimit() - usageCount;
-
-  const ringStyle = (target) => {
-    if (onboardingStep === null) return {};
-    const map = { 0: 'examples', 1: 'language', 2: 'button' };
-    if (map[onboardingStep] !== target) return {};
-    return { animation: 'ringPulse 1.2s ease-in-out infinite', borderRadius: 12 };
+  const ringOf = (target) => {
+    const map={0:'examples',1:'language',2:'button'};
+    if (onboardingStep===null||map[onboardingStep]!==target) return {};
+    return {animation:'ringPulse 1.2s ease-in-out infinite',borderRadius:12};
   };
 
+  const bottomPad = (showWaitlist && !showHistory && !showUpgrade && !loading) ? 88 : (isMobile ? 68 : 0);
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f7f6fb', fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif", paddingBottom: showWaitlist ? 88 : 0 }}>
+    <div style={{ minHeight:'100vh', background:C.bg, fontFamily:FONT, color:C.text, paddingBottom:bottomPad }}>
       <style>{globalStyles}</style>
 
       {/* Referral toast */}
       {referralToast && (
-        <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', backgroundColor: '#10B981', color: '#fff', padding: '12px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600, zIndex: 2000, boxShadow: '0 4px 20px rgba(16,185,129,0.3)', whiteSpace: 'nowrap', animation: 'fadeInUp 0.3s ease both' }}>
+        <div style={{ position:'fixed', top:72, left:'50%', transform:'translateX(-50%)', background:C.success, color:'#fff', padding:'12px 20px', borderRadius:12, fontSize:14, fontWeight:600, zIndex:2500, boxShadow:'0 4px 20px rgba(16,185,129,0.35)', whiteSpace:'nowrap', animation:'fadeInUp 0.3s ease both' }}>
           🎁 You got 1 bonus decode from a friend!
         </div>
       )}
 
       {/* Onboarding */}
-      {onboardingStep !== null && !result && !loading && (
-        <OnboardingTooltip step={onboardingStep} onNext={advanceOnboarding} onSkip={skipOnboarding} />
-      )}
+      {onboardingStep!==null&&!result&&!loading&&<OnboardingTooltip step={onboardingStep} onNext={advanceOnboarding} onSkip={skipOnboarding}/>}
 
-      {/* Header */}
-      <div style={{ backgroundColor: '#fff', borderBottom: '1px solid #ede9f8', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 22 }}>🔍</span>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.2 }}>Decode</div>
-          <div style={{ fontSize: 13, color: '#999', marginTop: 1 }}>Understand any document in plain language</div>
+      {/* Upgrade overlay */}
+      {showUpgrade && <UpgradeScreen onBack={()=>setShowUpgrade(false)} />}
+
+      {/* History panel */}
+      {showHistory && <HistoryPanel isPaid={isPaid} onClose={()=>setShowHistory(false)} />}
+
+      {/* Sticky Header */}
+      <header style={{ position:'sticky', top:0, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(12px)', borderBottom:`1px solid ${C.border}`, height:56, display:'flex', alignItems:'center', padding:'0 20px', zIndex:100, boxShadow:'0 1px 12px rgba(83,74,183,0.08)' }}>
+        <span style={{ fontSize:20, marginRight:8 }}>🔍</span>
+        <span style={{ fontSize:18, fontWeight:700, color:C.text }}>Decode</span>
+        <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
+          {isPaid && <span style={{ background:C.surface2, color:C.primary, fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:R.pill }}>PRO</span>}
+          {!isPaid && (
+            <button className="btn-press" onClick={()=>setShowUpgrade(true)} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', lineHeight:1 }} title="Upgrade to Pro">👑</button>
+          )}
+          <button className="btn-press" onClick={()=>setShowHistory(true)}
+            style={{ height:34, padding:'0 16px', background:'transparent', color:C.primary, border:`1.5px solid ${C.border}`, borderRadius:R.pill, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            History
+          </button>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {isPaid && <div style={{ backgroundColor: '#f0eeff', color: ACCENT, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>PRO</div>}
-          <button onClick={() => { setShowHistory(true); setShowUpgrade(false); setResult(null); }} style={{ backgroundColor: 'transparent', color: ACCENT, border: `1.5px solid ${ACCENT}`, borderRadius: 20, fontSize: 14, fontWeight: 600, padding: '8px 16px', cursor: 'pointer', minHeight: 44 }}>History</button>
-        </div>
-      </div>
+      </header>
 
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 48px' }}>
+      {/* Main */}
+      <main style={{ maxWidth:520, margin:'0 auto', padding:'20px 16px 32px' }}>
 
-        {showHistory ? (
-          <HistoryScreen isPaid={isPaid} onBack={() => setShowHistory(false)} />
-        ) : showUpgrade ? (
-          <UpgradeScreen onBack={() => setShowUpgrade(false)} />
-        ) : loading ? (
-          <LoadingSkeleton />
-        ) : !result ? (
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 2px 20px rgba(83,74,183,0.08)' }}>
+        {loading ? <LoadingSkeleton /> : !result ? (
+          <div style={{ background:C.surface, borderRadius:20, padding:20, boxShadow:C.shadow }}>
 
-            {/* Language selector */}
-            <div style={{ marginBottom: 20, ...ringStyle('language') }}>
-              <label style={{ fontSize: 14, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>Explain in</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {LANGUAGES.map(lang => (
-                  <button key={lang} onClick={() => setLanguage(lang)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: language === lang ? `2px solid ${ACCENT}` : '2px solid #e8e6f0', backgroundColor: language === lang ? '#eeecf9' : '#fff', color: language === lang ? ACCENT : '#666', fontWeight: language === lang ? 700 : 500, fontSize: 14, cursor: 'pointer', transition: 'all 0.15s', minHeight: 48 }}>{lang}</button>
+            {/* Language pills */}
+            <div style={{ marginBottom:20, ...ringOf('language') }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>Explain in</label>
+              <div style={{ display:'flex', gap:8 }}>
+                {LANGUAGES.map(lang=>(
+                  <button key={lang} className="btn-press" onClick={()=>setLanguage(lang)} style={{
+                    flex:1, height:40, borderRadius:R.pill, border:`1.5px solid ${language===lang?C.primary:C.border}`,
+                    background:language===lang?C.primary:C.surface, color:language===lang?'#fff':C.textSecondary,
+                    fontWeight:language===lang?600:500, fontSize:14, cursor:'pointer',
+                    boxShadow:language===lang?`0 2px 12px rgba(83,74,183,0.3)`:'none',
+                    transition:'all 0.18s ease',
+                  }}>{lang}</button>
                 ))}
               </div>
             </div>
 
             {/* Document type */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 14, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>Document type</label>
-              <select value={docType} onChange={e => setDocType(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '2px solid #e8e6f0', backgroundColor: '#fff', fontSize: 15, color: '#1a1a2e', outline: 'none', cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', paddingRight: 36, minHeight: 48 }}>
-                {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>Document type</label>
+              <div style={{ position:'relative' }}>
+                <select value={docType} onChange={e=>setDocType(e.target.value)} style={{
+                  width:'100%', height:48, padding:'0 40px 0 16px', borderRadius:R.input,
+                  border:`1.5px solid ${C.border}`, background:C.surface, fontSize:14, color:C.text,
+                  outline:'none', cursor:'pointer', appearance:'none', WebkitAppearance:'none',
+                }}>
+                  {DOC_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+                <span style={{ position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', color:C.primary, fontSize:16, pointerEvents:'none' }}>▾</span>
+              </div>
             </div>
 
             {/* Image upload */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 14, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>Upload document image</label>
-              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageChange} style={{ display: 'none' }} />
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>Upload document image</label>
+              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageChange} style={{ display:'none' }} />
               {!imagePreview ? (
-                <div onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{ border: '2px dashed #c9c4e8', borderRadius: 12, padding: '22px 16px', textAlign: 'center', cursor: 'pointer', backgroundColor: '#faf9ff', transition: 'all 0.15s', minHeight: 80 }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.backgroundColor = '#f0eeff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#c9c4e8'; e.currentTarget.style.backgroundColor = '#faf9ff'; }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>📷</div>
-                  <p style={{ margin: 0, fontSize: 14, color: '#666' }}>Take a photo or upload document image</p>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, color: '#aaa' }}>JPG, PNG, HEIC — any image format</p>
+                <div onClick={()=>fileInputRef.current?.click()} style={{ border:`2px dashed #C4BFFF`, borderRadius:R.card, padding:'24px 16px', textAlign:'center', cursor:'pointer', background:C.bg, transition:'all 0.18s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=C.surface2;e.currentTarget.style.borderColor=C.primary;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=C.bg;e.currentTarget.style.borderColor='#C4BFFF';}}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>📷</div>
+                  <p style={{ fontSize:14, color:C.textSecondary, margin:'0 0 4px' }}>Take a photo or upload document</p>
+                  <p style={{ fontSize:12, color:C.textMuted, margin:0 }}>JPG, PNG, HEIC supported</p>
                 </div>
               ) : (
-                <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `2px solid ${ACCENT}` }}>
-                  <img src={imagePreview} alt="Document" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
-                  <button onClick={handleRemoveImage} style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 36 }}>✕ Remove</button>
+                <div style={{ display:'flex', alignItems:'center', gap:14, background:C.surface2, borderRadius:12, padding:'12px 14px', border:`1.5px solid ${C.success}33` }}>
+                  <img src={imagePreview} alt="doc" style={{ width:64, height:64, objectFit:'cover', borderRadius:10, flexShrink:0 }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:C.text, display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                      <span style={{ color:C.success }}>✓</span>
+                      <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{imageFileName||'Image selected'}</span>
+                    </div>
+                    <p style={{ fontSize:12, color:C.textMuted, margin:0 }}>Ready to decode</p>
+                  </div>
+                  <button className="btn-press" onClick={handleRemoveImage} style={{ background:C.danger, color:'#fff', border:'none', borderRadius:R.pill, padding:'5px 12px', fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0 }}>✕ Remove</button>
                 </div>
               )}
             </div>
 
             {/* Textarea */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 14, fontWeight: 600, color: '#444', display: 'block', marginBottom: 10 }}>
-                Document text{imageBase64 && <span style={{ fontWeight: 400, color: '#aaa' }}> (optional if image uploaded)</span>}
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>
+                Document text{imageBase64&&<span style={{ fontWeight:400, color:C.textMuted }}> (optional)</span>}
               </label>
-              <textarea value={text} onChange={e => setText(e.target.value)} placeholder={PLACEHOLDERS[placeholderIdx]} rows={5}
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '2px solid #e8e6f0', fontSize: 15, color: '#1a1a2e', lineHeight: 1.6, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
-                onFocus={e => e.target.style.borderColor = ACCENT}
-                onBlur={e => e.target.style.borderColor = '#e8e6f0'}
+              <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={PLACEHOLDERS[placeholderIdx]} rows={5}
+                style={{ width:'100%', minHeight:120, padding:'14px 16px', borderRadius:R.input, border:`1.5px solid ${C.border}`, fontSize:15, color:C.text, lineHeight:1.6, resize:'vertical', outline:'none', fontFamily:FONT, transition:'border-color 0.18s, box-shadow 0.18s', background:C.surface }}
+                onFocus={e=>{e.target.style.borderColor=C.primary;e.target.style.boxShadow=`0 0 0 3px ${C.primaryGlow}`;}}
+                onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow='none';}}
               />
-              {/* Example chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, ...ringStyle('examples') }}>
-                {EXAMPLES.map((ex, i) => (
-                  <button key={i} onClick={() => setText(ex)} style={{ fontSize: 13, padding: '7px 14px', borderRadius: 20, border: '1px solid #ddd9f5', backgroundColor: '#f5f3ff', color: ACCENT, cursor: 'pointer', lineHeight: 1.4, transition: 'background-color 0.15s', minHeight: 36 }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eeecf9'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f5f3ff'}
-                  >{ex.length > 38 ? ex.slice(0, 38) + '…' : ex}</button>
-                ))}
+              {/* Example chips with horizontal scroll + fade gradients */}
+              <div style={{ position:'relative', marginTop:10 }}>
+                <div className="chips-scroll" style={{ ...ringOf('examples') }}>
+                  {EXAMPLES.map((ex,i)=>(
+                    <button key={i} className="chip btn-press" onClick={()=>setText(ex)} style={{ fontSize:12, padding:'7px 14px', borderRadius:R.pill, border:`1.5px solid ${C.border}`, background:C.surface, color:C.textSecondary, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0, fontFamily:FONT, transition:'all 0.15s' }}>
+                      {ex.length>42?ex.slice(0,42)+'…':ex}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ position:'absolute', left:0, top:0, bottom:0, width:24, background:`linear-gradient(to right, ${C.surface}, transparent)`, pointerEvents:'none' }} />
+                <div style={{ position:'absolute', right:0, top:0, bottom:0, width:24, background:`linear-gradient(to left, ${C.surface}, transparent)`, pointerEvents:'none' }} />
               </div>
             </div>
 
             {/* Error */}
             {error && (
-              <div style={{ backgroundColor: '#fff3f3', border: '1px solid #ffd0d0', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                <p style={{ margin: '0 0 10px', fontSize: 14, color: '#cc3333', lineHeight: 1.5 }}>{error}</p>
-                <button onClick={handleDecode} style={{ backgroundColor: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
-                  Try again
-                </button>
+              <div style={{ background:'#fff1f1', border:`1px solid ${C.danger}33`, borderRadius:12, padding:'14px 16px', marginBottom:16, animation:errorShake?'shake 0.5s ease':'none' }}>
+                <p style={{ fontSize:14, color:C.danger, lineHeight:1.55, marginBottom:10 }}>{error}</p>
+                <button className="btn-press" onClick={handleDecode} style={{ height:40, padding:'0 18px', background:C.primary, color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}>Try again</button>
               </div>
             )}
 
-            {/* Freemium gate or decode button */}
+            {/* Freemium / Decode button */}
             {limitReached && !isPaid ? (
-              <button onClick={() => setShowUpgrade(true)} style={{ width: '100%', padding: '15px 0', backgroundColor: ACCENT, color: '#fff', border: 'none', borderRadius: 12, fontSize: 17, fontWeight: 700, cursor: 'pointer', minHeight: 56 }}>
+              <button className="btn-press" onClick={()=>setShowUpgrade(true)} style={{ width:'100%', height:52, background:GRAD, color:'#fff', border:'none', borderRadius:14, fontSize:16, fontWeight:700, cursor:'pointer', boxShadow:`0 4px 20px ${C.primaryShadow}` }}>
                 🔒 Upgrade for Unlimited Decodes
               </button>
             ) : (
               <>
                 {!isPaid && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <span style={{ fontSize: 14, fontWeight: remaining === 1 ? 600 : 400, color: remaining === 1 ? '#F59E0B' : '#999' }}>
-                      {remaining === 1 ? '⚠️ ' : ''}{remaining} free decode{remaining !== 1 ? 's' : ''} remaining today
-                      {getBonus() > 0 && <span style={{ color: '#10B981', fontSize: 13 }}> (+{getBonus()} bonus)</span>}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                    <span style={{ fontSize:13, fontWeight:remaining===1?600:400, color:remaining===1?C.warning:C.textMuted }}>
+                      {remaining===1?'⚠️ ':''}{remaining} free decode{remaining!==1?'s':''} left today
+                      {getBonus()>0&&<span style={{ color:C.success, fontSize:12 }}> (+{getBonus()} bonus)</span>}
                     </span>
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      {Array.from({ length: getDailyLimit() }).map((_, i) => (
-                        <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: i < usageCount ? '#e0ddf5' : '#22C55E' }} />
-                      ))}
+                    <div style={{ display:'flex', gap:5 }}>
+                      {Array.from({length:getDailyLimit()}).map((_,i)=><div key={i} style={{ width:8, height:8, borderRadius:'50%', background:i<usageCount?C.border:'#22C55E' }} />)}
                     </div>
                   </div>
                 )}
-                <div style={ringStyle('button')}>
-                  <button onClick={handleDecode} style={{ width: '100%', padding: '15px 0', backgroundColor: ACCENT, color: '#fff', border: 'none', borderRadius: 12, fontSize: 17, fontWeight: 700, cursor: 'pointer', transition: 'background-color 0.15s', minHeight: 56 }}
-                    onMouseEnter={e => e.target.style.backgroundColor = ACCENT_DARK}
-                    onMouseLeave={e => e.target.style.backgroundColor = ACCENT}
-                  >Decode it</button>
+                <div style={ringOf('button')}>
+                  <button className="btn-press" onClick={handleDecode} style={{
+                    width:'100%', height:52, background:GRAD, color:'#fff', border:'none', borderRadius:14,
+                    fontSize:16, fontWeight:600, cursor:'pointer',
+                    boxShadow:`0 4px 20px ${C.primaryShadow}`, transition:'all 0.18s',
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                  }}
+                    onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-1px)';e.currentTarget.style.boxShadow=`0 6px 28px ${C.primaryShadow}`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow=`0 4px 20px ${C.primaryShadow}`;}}
+                  >
+                    Decode it
+                  </button>
                 </div>
               </>
             )}
 
+            {/* Slow warning */}
+            {slowWarning && <p style={{ textAlign:'center', fontSize:13, color:C.textMuted, marginTop:12, animation:'fadeIn 0.3s ease' }}>⏳ Taking longer than usual... please wait</p>}
+
             {/* Trust badges */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
-              {['🔒 Private & secure', '⚡ Results in 10 seconds', '🇮🇳 Made for India'].map((badge, i, arr) => (
-                <span key={i} style={{ fontSize: 13, color: '#999', padding: '0 10px', borderRight: i < arr.length - 1 ? '1px solid #ddd' : 'none' }}>{badge}</span>
+            <div style={{ display:'flex', justifyContent:'center', marginTop:20, flexWrap:'wrap' }}>
+              {['🔒 Private & secure','⚡ Results in 10 seconds','🇮🇳 Made for India'].map((badge,i,arr)=>(
+                <span key={i} style={{ fontSize:11, color:C.textMuted, padding:'0 12px', borderRight:i<arr.length-1?`1px solid ${C.border}`:'none' }}>{badge}</span>
               ))}
             </div>
 
             {/* How it works */}
-            <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid #f0eeff' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', textAlign: 'center', marginBottom: 18, letterSpacing: '0.5px', textTransform: 'uppercase' }}>How it works</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[
-                  { icon: '📋', step: '1', title: 'Paste or upload', desc: 'Your document' },
-                  { icon: '🌐', step: '2', title: 'Choose language', desc: 'English, Hindi, Bengali' },
-                  { icon: '✨', step: '3', title: 'Get explanation', desc: 'In plain language' },
-                ].map(({ icon, step, title, desc }) => (
-                  <div key={step} style={{ flex: 1, textAlign: 'center', padding: '14px 8px', backgroundColor: '#faf9ff', borderRadius: 12 }}>
-                    <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, marginBottom: 4 }}>Step {step}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 2 }}>{title}</div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>{desc}</div>
+            <div style={{ marginTop:28, paddingTop:20, borderTop:`1px solid ${C.border}` }}>
+              <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, textAlign:'center', marginBottom:16, letterSpacing:'0.08em', textTransform:'uppercase' }}>How it works</div>
+              <div style={{ display:'flex', gap:8 }}>
+                {[{icon:'📋',step:'1',title:'Paste or upload',desc:'Your document'},{icon:'🌐',step:'2',title:'Choose language',desc:'Eng, Hindi, Bengali'},{icon:'✨',step:'3',title:'Get explanation',desc:'In plain language'}].map(({icon,step,title,desc})=>(
+                  <div key={step} style={{ flex:1, textAlign:'center', padding:'14px 8px', background:C.bg, borderRadius:12, border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:22, marginBottom:6 }}>{icon}</div>
+                    <div style={{ fontSize:10, fontWeight:700, color:C.primary, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>Step {step}</div>
+                    <div style={{ fontSize:12, fontWeight:600, color:C.text, marginBottom:2 }}>{title}</div>
+                    <div style={{ fontSize:11, color:C.textMuted }}>{desc}</div>
                   </div>
                 ))}
               </div>
             </div>
 
           </div>
+
         ) : (
-          /* Result section */
+          /* ─── Result Section ─── */
           <div>
             {/* Result cards */}
             {[
-              { key: 'what_is_this', label: 'WHAT IS THIS?', color: CARD_COLORS.what_is_this, delay: '0ms' },
-              { key: 'what_it_means_for_you', label: 'WHAT IT MEANS FOR YOU', color: CARD_COLORS.what_it_means_for_you, delay: '80ms' },
-              { key: 'what_to_do_next', label: 'WHAT TO DO NEXT', color: CARD_COLORS.what_to_do_next, delay: '160ms' },
-            ].map(({ key, label, color, delay }) => (
-              <div key={key} style={{ backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14, boxShadow: '0 2px 16px rgba(83,74,183,0.07)', borderLeft: `4px solid ${color}`, animation: 'fadeInUp 0.35s ease both', animationDelay: delay }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1.2px', marginBottom: 10 }}>{label}</div>
-                {key === 'what_to_do_next' ? (
-                  <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
-                    {(result.what_to_do_next || []).map((step, i) => <li key={i} style={{ fontSize: 15, color: '#1a1a2e', lineHeight: 1.65, marginBottom: i < result.what_to_do_next.length - 1 ? 10 : 0 }}>{step}</li>)}
-                  </ol>
-                ) : <p style={{ margin: 0, fontSize: 15, color: '#1a1a2e', lineHeight: 1.65 }}>{result[key]}</p>}
+              {key:'what_is_this',label:'WHAT IS THIS?',color:CARD_COLORS.what_is_this,delay:'0ms'},
+              {key:'what_it_means_for_you',label:'WHAT IT MEANS FOR YOU',color:CARD_COLORS.what_it_means_for_you,delay:'100ms'},
+              {key:'what_to_do_next',label:'WHAT TO DO NEXT',color:CARD_COLORS.what_to_do_next,delay:'200ms'},
+            ].map(({key,label,color,delay})=>(
+              <div key={key} style={{ background:C.surface, borderRadius:R.card, padding:20, marginBottom:12, boxShadow:C.shadow, borderTop:`3px solid ${color}`, animation:'fadeInUp 0.35s ease both', animationDelay:delay }}>
+                <div style={{ fontSize:11, fontWeight:700, color, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:12 }}>{label}</div>
+                {key==='what_to_do_next' ? (
+                  <ol style={{ paddingLeft:20 }}>{(result.what_to_do_next||[]).map((s,i)=><li key={i} style={{ fontSize:15,color:C.text,lineHeight:1.7,marginBottom:6 }}>{s}</li>)}</ol>
+                ) : <p style={{ fontSize:15,color:C.text,lineHeight:1.7 }}>{result[key]}</p>}
               </div>
             ))}
 
-            {/* Action row: Copy + Read aloud */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12, animation: 'fadeInUp 0.35s ease 200ms both' }}>
-              <button onClick={handleCopyResult} style={{ flex: 1, height: 48, backgroundColor: '#fff', color: ACCENT, border: `2px solid ${ACCENT}`, borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'background-color 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0eeff'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
-                {resultCopied ? '✓ Copied!' : '📋 Copy result'}
-              </button>
-              <button onClick={handleReadAloud} style={{ flex: 1, height: 48, backgroundColor: '#fff', color: ACCENT, border: `2px solid ${ACCENT}`, borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'background-color 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0eeff'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}>
-                {speaking ? '⏹ Stop' : '🔊 Read aloud'}
-              </button>
+            {/* Action row */}
+            <div style={{ display:'flex', gap:8, marginBottom:12, animation:'fadeInUp 0.35s ease 280ms both' }}>
+              {[
+                {label:resultCopied?'✓ Copied!':'📋 Copy',action:handleCopyResult,active:resultCopied},
+                {label:speaking?'⏹ Stop':'🔊 Read',action:handleReadAloud,active:speaking},
+                {label:'📤 WhatsApp',action:handleWhatsAppShare,active:false},
+              ].map(({label,action,active})=>(
+                <button key={label} className="btn-press" onClick={action} style={{ flex:1, height:44, background:active?C.primary:C.surface, color:active?'#fff':C.primary, border:`1.5px solid ${active?C.primary:C.border}`, borderRadius:R.pill, fontSize:13, fontWeight:600, cursor:'pointer', transition:'all 0.18s' }}>
+                  {label}
+                </button>
+              ))}
             </div>
 
-            {/* Referral card */}
-            <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 22px', marginBottom: 14, boxShadow: '0 2px 16px rgba(83,74,183,0.07)', animation: 'fadeInUp 0.35s ease 240ms both', border: '1px dashed #c9c4e8' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', marginBottom: 6 }}>🎁 Give a friend 1 free extra decode</div>
-              <p style={{ margin: '0 0 14px', fontSize: 14, color: '#777', lineHeight: 1.5 }}>Share your link — they get 1 bonus decode automatically.</p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1, backgroundColor: '#f7f6fb', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{referralLink}</div>
-                <button onClick={handleCopyReferral} style={{ flexShrink: 0, padding: '10px 16px', backgroundColor: referralCopied ? '#10B981' : ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background-color 0.2s', minHeight: 44 }}>
-                  {referralCopied ? '✓ Copied!' : 'Copy link'}
+            {/* Referral */}
+            <div style={{ background:C.surface, border:`1.5px dashed ${C.border}`, borderRadius:R.card, padding:18, marginBottom:12, animation:'fadeInUp 0.35s ease 340ms both' }}>
+              <div style={{ fontSize:15, fontWeight:700, color:C.text, marginBottom:6 }}>🎁 Give a friend 1 free extra decode</div>
+              <p style={{ fontSize:13, color:C.textSecondary, lineHeight:1.55, marginBottom:14 }}>Share your link — they get 1 bonus decode automatically.</p>
+              <div style={{ display:'flex', gap:8 }}>
+                <div style={{ flex:1, background:C.bg, borderRadius:8, padding:'10px 12px', fontSize:12, color:C.textMuted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:'monospace' }}>{referralLink}</div>
+                <button className="btn-press" onClick={handleCopyReferral} style={{ flexShrink:0, height:40, padding:'0 16px', background:referralCopied?C.success:C.primary, color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', transition:'background 0.2s', animation:referralCopied?'greenPop 0.3s ease':'none' }}>
+                  {referralCopied?'✓ Copied!':'Copy link'}
                 </button>
               </div>
             </div>
 
-            {/* WhatsApp share */}
-            <button onClick={handleWhatsAppShare} style={{ width: '100%', height: 52, backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 12, animation: 'fadeInUp 0.35s ease 300ms both' }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1fb855'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#25D366'}>
-              📤 Share on WhatsApp
-            </button>
-
             {/* Follow-up chat */}
-            <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14, boxShadow: '0 2px 16px rgba(83,74,183,0.07)', animation: 'fadeInUp 0.35s ease 360ms both' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#444', marginBottom: 14 }}>Have a question about this document?</div>
-              {followups.map((item, i) => (
-                <div key={i} style={{ marginBottom: 14 }}>
-                  <div style={{ backgroundColor: '#f0eeff', borderRadius: '12px 12px 4px 12px', padding: '10px 14px', fontSize: 14, color: ACCENT, fontWeight: 500, marginBottom: 8 }}>{item.q}</div>
-                  <div style={{ backgroundColor: '#f7f6fb', borderRadius: '4px 12px 12px 12px', padding: '10px 14px', fontSize: 14, color: '#1a1a2e', lineHeight: 1.6 }}>{item.a}</div>
+            <div style={{ background:C.surface, borderRadius:R.card, padding:20, marginBottom:12, boxShadow:C.shadow, animation:'fadeInUp 0.35s ease 400ms both' }}>
+              <div style={{ fontSize:14, fontWeight:600, color:C.text, marginBottom:16 }}>Ask a follow-up question</div>
+              {followups.map((item,i)=>(
+                <div key={i} style={{ marginBottom:14 }}>
+                  <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                    <div style={{ background:C.surface2, color:C.primary, padding:'10px 14px', borderRadius:'16px 16px 4px 16px', fontSize:14, fontWeight:500, maxWidth:'85%' }}>{item.q}</div>
+                  </div>
+                  <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'flex-start' }}>
+                    <div style={{ width:28, height:28, background:C.bg, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0, border:`1px solid ${C.border}` }}>🔍</div>
+                    <div style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.text, padding:'10px 14px', borderRadius:'4px 16px 16px 16px', fontSize:14, lineHeight:1.6, maxWidth:'85%' }}>{item.a}</div>
+                  </div>
                 </div>
               ))}
-              {followupLoading && <div style={{ fontSize: 14, color: '#aaa', marginBottom: 12, animation: 'pulse 1.4s ease-in-out infinite' }}>Thinking...</div>}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input value={followupQ} onChange={e => setFollowupQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && !followupLoading && handleFollowup()} placeholder="Ask anything... e.g. Is this serious?"
-                  style={{ flex: 1, padding: '12px 14px', borderRadius: 10, border: '2px solid #e8e6f0', fontSize: 16, color: '#1a1a2e', outline: 'none', fontFamily: 'inherit', minHeight: 48 }}
-                  onFocus={e => e.target.style.borderColor = ACCENT}
-                  onBlur={e => e.target.style.borderColor = '#e8e6f0'}
+              {followupLoading && <p style={{ fontSize:14, color:C.textMuted, animation:'pulse 1.4s ease-in-out infinite', marginBottom:12 }}>Thinking...</p>}
+              <div ref={chatEndRef} />
+              <div style={{ display:'flex', gap:8 }}>
+                <input value={followupQ} onChange={e=>setFollowupQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!followupLoading&&handleFollowup()} placeholder="Is this serious? What should I do first?"
+                  style={{ flex:1, height:48, padding:'0 14px', borderRadius:12, border:`1.5px solid ${C.border}`, fontSize:16, color:C.text, outline:'none', fontFamily:FONT, background:C.surface, transition:'border-color 0.18s, box-shadow 0.18s' }}
+                  onFocus={e=>{e.target.style.borderColor=C.primary;e.target.style.boxShadow=`0 0 0 3px ${C.primaryGlow}`;}}
+                  onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow='none';}}
                 />
-                <button onClick={handleFollowup} disabled={followupLoading || !followupQ.trim()} style={{ padding: '12px 18px', backgroundColor: followupLoading ? '#9992d4' : ACCENT, color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: followupLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0, minHeight: 48 }}>Ask</button>
+                <button className="btn-press" onClick={handleFollowup} disabled={followupLoading||!followupQ.trim()} style={{ width:48, height:48, background:followupLoading?'#9992d4':GRAD, color:'#fff', border:'none', borderRadius:12, fontSize:20, cursor:followupLoading?'not-allowed':'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {followupLoading?<Spinner size={16}/>:'→'}
+                </button>
               </div>
             </div>
 
-            <button onClick={handleReset} style={{ width: '100%', padding: '15px 0', backgroundColor: ACCENT, color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', animation: 'fadeInUp 0.35s ease 420ms both', minHeight: 56 }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = ACCENT_DARK}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = ACCENT}>
+            <button className="btn-press" onClick={handleReset} style={{ width:'100%', height:52, background:GRAD, color:'#fff', border:'none', borderRadius:14, fontSize:16, fontWeight:600, cursor:'pointer', boxShadow:`0 4px 20px ${C.primaryShadow}`, animation:'fadeInUp 0.35s ease 460ms both' }}
+              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-1px)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';}}
+            >
               Decode another document
             </button>
           </div>
         )}
 
-        {/* Slow warning */}
-        {slowWarning && loading && (
-          <div style={{ textAlign: 'center', marginTop: 16, fontSize: 14, color: '#999', animation: 'fadeInUp 0.3s ease both' }}>
-            ⏳ Taking longer than usual... please wait
-          </div>
-        )}
+        <p style={{ textAlign:'center', fontSize:12, color:C.textMuted, marginTop:32 }}>Decode — making documents simple for everyone</p>
+      </main>
 
-        <p style={{ textAlign: 'center', fontSize: 13, color: '#ccc', marginTop: 32 }}>Decode — making documents simple for everyone</p>
-      </div>
+      {/* Waitlist bar */}
+      {showWaitlist && !showHistory && !showUpgrade && !loading && <WaitlistBar onDismiss={()=>{localStorage.setItem('waitlist_dismissed','true');setShowWaitlist(false);}} />}
 
-      {/* Waitlist sticky bar */}
-      {showWaitlist && !showHistory && !showUpgrade && !loading && (
-        <WaitlistBar onDismiss={dismissWaitlist} />
+      {/* Mobile bottom nav */}
+      {isMobile && (
+        <nav style={{ position:'fixed', bottom:0, left:0, right:0, background:C.surface, borderTop:`1px solid ${C.border}`, height:60, display:'flex', alignItems:'center', zIndex:500, paddingBottom:'env(safe-area-inset-bottom)' }}>
+          {[
+            {id:'home',icon:'🏠',label:'Home',action:()=>{handleReset();setActiveTab('home');}},
+            {id:'history',icon:'📋',label:'History',action:()=>{setShowHistory(true);setActiveTab('history');}},
+            {id:'upgrade',icon:'👑',label:'Upgrade',action:()=>{setShowUpgrade(true);setActiveTab('upgrade');}},
+          ].map(({id,icon,label,action})=>{
+            const active = activeTab===id||(id==='history'&&showHistory)||(id==='upgrade'&&showUpgrade);
+            return (
+              <button key={id} className="btn-press" onClick={action} style={{ flex:1, height:'100%', background:'none', border:'none', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, cursor:'pointer', color:active?C.primary:C.textMuted }}>
+                <span style={{ fontSize:20 }}>{icon}</span>
+                <span style={{ fontSize:10, fontWeight:active?700:500 }}>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
       )}
     </div>
   );

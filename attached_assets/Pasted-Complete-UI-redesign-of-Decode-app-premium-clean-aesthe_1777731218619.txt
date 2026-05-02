@@ -1,0 +1,206 @@
+Complete UI redesign of Decode app — premium, clean, aesthetic. 
+Redesign the entire frontend from scratch while keeping ALL 
+existing functionality exactly the same.
+
+DESIGN SYSTEM:
+- Primary: #534AB7 (purple)
+- Primary dark: #3D3589
+- Success: #10B981 (green)
+- Warning: #F59E0B
+- Danger: #EF4444
+- Background: #F8F7FF (very light purple tint)
+- Surface: #FFFFFF
+- Surface 2: #F3F2FF
+- Text primary: #1A1A2E
+- Text secondary: #6B7280
+- Text muted: #9CA3AF
+- Border: #E8E6FF
+- Shadow: 0 2px 20px rgba(83,74,183,0.08)
+- Border radius: 16px for cards, 12px for inputs, 
+  50px for pills
+- Font: use system font stack: 
+  -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif
+
+HEADER (sticky, always visible):
+- White background, subtle bottom border #E8E6FF
+- Height: 56px
+- Left: 🔍 emoji + "Decode" in 18px font-weight 700 
+  color #1A1A2E
+- Right side: History button (outline pill style) 
+  + upgrade crown icon if not paid
+- Subtle box shadow: 0 1px 12px rgba(83,74,183,0.08)
+
+MAIN CONTAINER:
+- Max width 520px, centered, padding 16px
+- Background: #F8F7FF
+
+LANGUAGE SELECTOR:
+- 3 pills in a row, full equal width
+- Unselected: white background, #E8E6FF border, 
+  #6B7280 text
+- Selected: #534AB7 background, white text, 
+  subtle shadow
+- Height: 40px, font-size 14px, font-weight 500
+- Smooth transition on select
+
+DOCUMENT TYPE DROPDOWN:
+- White background, #E8E6FF border, 16px border-radius
+- Height: 48px, padding 0 16px
+- Custom arrow icon (▾) in #534AB7
+- Font size 14px
+
+IMAGE UPLOAD AREA:
+- Dashed border 2px #C4BFFF, border-radius 16px
+- Background: #F8F7FF
+- Center: camera emoji 📷 in 32px + 
+  "Take a photo or upload document" in 14px #6B7280
+- "JPG, PNG, HEIC supported" in 12px #9CA3AF
+- On hover: background #F0EEFF, border color #534AB7
+- When image selected: show thumbnail 80x80px 
+  rounded 12px + filename + green checkmark
+- Remove button: small red ✕ pill
+
+TEXTAREA:
+- White background, #E8E6FF border, 16px border-radius
+- Min height: 120px, padding: 14px 16px
+- Font size: 15px, line-height 1.6
+- Placeholder color: #9CA3AF
+- On focus: border #534AB7, 
+  box-shadow 0 0 0 3px rgba(83,74,183,0.12)
+- Smooth transition
+
+EXAMPLE CHIPS:
+- Horizontal scroll row (no wrapping)
+- Each chip: white bg, #E8E6FF border, 
+  border-radius 50px, padding 6px 14px
+- Font size: 12px, color #6B7280
+- On hover: #534AB7 border, #534AB7 text
+- Add left fade and right fade gradient 
+  to indicate scrollability
+
+DECODE BUTTON:
+- Full width, height 52px
+- Background: linear-gradient(135deg, #534AB7, #6C63D5)
+- White text, font-size 16px, font-weight 600
+- Border-radius: 14px
+- Box-shadow: 0 4px 20px rgba(83,74,183,0.35)
+- On hover: shadow grows, slight lift 
+  (transform: translateY(-1px))
+- On active: slight press down
+- Loading state: show spinner + "Decoding..." 
+  with pulsing animation
+
+TRUST BADGES:
+- Row of 3, centered, gap 16px
+- Each: icon + small text in #6B7280
+- Divider lines between them
+- Font size: 11px
+
+LOADING SKELETON:
+- 3 skeleton cards with shimmer animation
+- Shimmer: linear-gradient moving left to right
+- Background: white card, inner lines grey
+- Matches exact layout of result cards
+
+RESULT CARDS:
+- White background, border-radius 16px
+- Box-shadow: 0 2px 20px rgba(83,74,183,0.06)
+- Padding: 20px
+- Border-top: 3px solid (blue/green/purple per card)
+- Label: 11px, font-weight 700, uppercase, 
+  letter-spacing 0.08em, matching card color
+- Content: 15px, color #1A1A2E, line-height 1.7
+- Fade in from bottom with stagger 
+  (0ms, 100ms, 200ms delay)
+- Action buttons row at bottom of last card:
+  🔊 Read aloud | 📋 Copy result | 📤 WhatsApp
+  Small pill buttons, outlined style
+
+FOLLOW-UP CHAT:
+- Section title: "Ask a follow-up question" 
+  14px font-weight 600
+- Input row: white input + purple send button 
+  side by side
+- User bubbles: #F0EEFF background, 
+  #534AB7 text, right aligned
+- AI bubbles: white background, grey border, 
+  left aligned, with small 🔍 icon
+- Smooth scroll to latest message
+
+UPGRADE PAGE:
+- Full screen overlay with blur backdrop
+- White card max-width 480px centered
+- Close button top right
+- Two pricing cards side by side:
+  * Free card: white, grey border
+  * Pro card: white, #534AB7 border 2px, 
+    subtle purple shadow
+  * "POPULAR" badge: #534AB7 background, 
+    white text, rotated ribbon style
+- Upgrade button: full gradient purple, 
+  large, with lock icon 🔒
+- Guarantee text: "Cancel anytime • Secure via Razorpay"
+
+HISTORY PANEL:
+- Slides in from right (translateX animation)
+- White background, full height
+- Each item: white card, subtle shadow, 
+  border-left 3px colored by docType
+- Timestamp in muted small text
+- docType badge: colored pill
+- Hover: slight lift
+
+ADMIN PAGE:
+- Keep dark theme
+- Stat cards: dark surface, 
+  purple accent numbers
+- Clean monospace font for the log table
+
+BOTTOM NAVIGATION (mobile only, below 768px):
+- White, border-top #E8E6FF, height 60px
+- 3 tabs with icons + labels
+- Active: #534AB7, inactive: #9CA3AF
+- Safe area padding for iPhone notch
+
+ONBOARDING TOOLTIPS:
+- Dark background #1A1A2E, white text
+- Arrow pointer toward highlighted element
+- Smooth fade in/out
+- Highlighted element: purple glow ring
+
+WAITLIST BAR:
+- Gradient background: #534AB7 to #6C63D5
+- Slide up from bottom animation
+- White text, white outlined input
+- "Notify me" button: white background, 
+  #534AB7 text
+
+MICRO INTERACTIONS:
+- All buttons: scale(0.97) on click
+- Cards: subtle hover lift
+- Success states: green pulse animation
+- Error states: gentle shake animation
+- All transitions: 0.2s ease
+
+Make sure ALL existing features still work:
+✓ Language selection
+✓ Doc type dropdown  
+✓ Image upload with preview
+✓ Example chips (horizontal scroll)
+✓ Freemium gate (3 free + bonus)
+✓ Decode API call
+✓ Result cards with animations
+✓ Follow-up chat
+✓ Read aloud
+✓ Copy result
+✓ WhatsApp share
+✓ History panel
+✓ Referral system
+✓ Waitlist bar
+✓ Onboarding tooltips
+✓ PWA install
+✓ Razorpay upgrade
+✓ Admin dashboard at /admin
+✓ Bottom nav on mobile
+
+Restart everything when done. Show preview.
