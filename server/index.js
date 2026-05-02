@@ -17,6 +17,9 @@ app.get('/health', (req, res) => {
 const decodeRouter = require('./routes/decode');
 app.use('/api/decode', decodeRouter);
 
+const paymentRoute = require('./routes/payment');
+app.use('/api/payment', paymentRoute);
+
 app.listen(PORT, () => {
   console.log(`Decode server running on port ${PORT}`);
 });

@@ -1,0 +1,90 @@
+Add Razorpay payment integration to the Decode app for ₹199/month subscription.
+
+STEP 1 — Install in server folder:
+npm install razorpay
+
+STEP 2 — Create server/routes/payment.js:
+
+const express = require('express');
+const router = express.Router();
+
+// In-memory paid users store (works for now)
+const paidUsers = new Set();
+
+// POST /api/payment/create-order
+router.post('/create-order', async (req, res) => {
+  try {
+    const Razorpay = require('razorpay');
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+    const order = await razorpay.orders.create({
+      amount: 19900, // ₹199 in paise
+      currency: 'INR',
+      receipt: 'decode_' + Date.now(),
+    });
+    res.json({ success: true, order });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Payment failed' });
+  }
+});
+
+// POST /api/payment/verify
+router.post('/verify', (req, res) => {
+  const { phone, razorpay_payment_id } = req.body;
+  if (phone && razorpay_payment_id) {
+    paidUsers.add(phone);
+    return res.json({ success: true });
+  }
+  res.status(400).json({ success: false });
+});
+
+// GET /api/payment/status/:phone
+router.get('/status/:phone', (req, res) => {
+  res.json({ isPaid: paidUsers.has(req.params.phone) });
+});
+
+module.exports = router;
+
+STEP 3 — Add to server/index.js:
+const paymentRoute = require('./routes/payment');
+app.use('/api/payment', paymentRoute);
+
+STEP 4 — Add these to Replit Secrets:
+RAZORPAY_KEY_ID=rzp_test_your_key
+RAZORPAY_KEY_SECRET=your_secret
+
+STEP 5 — Add upgrade page to frontend App.jsx:
+When user hits 3 decode limit show this upgrade screen:
+
+- Headline: "You've used your 3 free decodes today"
+- Subtext: "Upgrade to Decode Pro for unlimited decodes"
+- Pricing card with border:
+  * "₹199/month" in large text
+  * 4 bullet points with green checkmark:
+    - Unlimited decodes every day
+    - Hindi, Bengali and English
+    - Upload document photos  
+    - Save decode history (coming soon)
+- "Upgrade Now" button in #534AB7 purple
+
+On clicking Upgrade Now:
+- Load Razorpay checkout script from https://checkout.razorpay.com/v1/checkout.js
+- Open Razorpay modal with:
+  key: process.env RAZORPAY_KEY_ID (pass from backend)
+  amount: 19900
+  currency: INR
+  name: "Decode"
+  description: "Pro Monthly Subscription"
+  theme.color: "#534AB7"
+- On payment success: 
+  * Call POST /api/payment/verify with phone and payment_id
+  * Set localStorage isPaid = true
+  * Show success message "You're now a Pro member!"
+  * Reset usage count, redirect to home
+
+Also add "Back to free version" text link below the upgrade button.
+
+Restart everything and show preview.
