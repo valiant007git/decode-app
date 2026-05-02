@@ -531,10 +531,12 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [scannedHighlight, setScannedHighlight] = useState(false);
   const fileInputRef = useRef(null);
   const pdfFileRef = useRef(null);
   const slowTimerRef = useRef(null);
   const chatEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -616,8 +618,19 @@ export default function App() {
         });
         const pdfData = await pdfRes.json();
         if (!pdfData.success) {
-          triggerError(pdfData.error || 'Could not read PDF. Please copy the text and paste it instead.');
-          setLoading(false);
+          if (pdfData.isScanned) {
+            triggerError('This PDF is a scanned image — please copy the text from your PDF and paste it in the text box below.');
+            setScannedHighlight(true);
+            setLoading(false);
+            setTimeout(() => {
+              textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              textareaRef.current?.focus();
+            }, 200);
+            setTimeout(() => setScannedHighlight(false), 4000);
+          } else {
+            triggerError(pdfData.error || 'Could not read PDF. Please copy the text and paste it instead.');
+            setLoading(false);
+          }
           return;
         }
         decodeText = pdfData.text;
@@ -868,10 +881,10 @@ export default function App() {
               <label style={{ fontSize:13, fontWeight:600, color:C.textSecondary, display:'block', marginBottom:10 }}>
                 Document text{(imageBase64||pdfBase64)&&<span style={{ fontWeight:400, color:C.textMuted }}> (optional)</span>}
               </label>
-              <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={PLACEHOLDERS[placeholderIdx]} rows={5}
-                style={{ width:'100%', minHeight:120, padding:'14px 16px', borderRadius:R.input, border:`1.5px solid ${C.border}`, fontSize:15, color:C.text, lineHeight:1.6, resize:'vertical', outline:'none', fontFamily:FONT, transition:'border-color 0.18s, box-shadow 0.18s', background:C.surface }}
-                onFocus={e=>{e.target.style.borderColor=C.primary;e.target.style.boxShadow=`0 0 0 3px ${C.primaryGlow}`;}}
-                onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow='none';}}
+              <textarea ref={textareaRef} value={text} onChange={e=>{setText(e.target.value);if(scannedHighlight)setScannedHighlight(false);}} placeholder={scannedHighlight?'Paste your PDF text here...':PLACEHOLDERS[placeholderIdx]} rows={5}
+                style={{ width:'100%', minHeight:120, padding:'14px 16px', borderRadius:R.input, border:`1.5px solid ${scannedHighlight?'#3B82F6':C.border}`, fontSize:15, color:C.text, lineHeight:1.6, resize:'vertical', outline:'none', fontFamily:FONT, transition:'border-color 0.18s, box-shadow 0.18s', background:C.surface, boxShadow:scannedHighlight?'0 0 0 3px rgba(59,130,246,0.25)':'none' }}
+                onFocus={e=>{if(!scannedHighlight){e.target.style.borderColor=C.primary;e.target.style.boxShadow=`0 0 0 3px ${C.primaryGlow}`;}}}
+                onBlur={e=>{if(!scannedHighlight){e.target.style.borderColor=C.border;e.target.style.boxShadow='none';}}}
               />
               {/* Example chips with horizontal scroll + fade gradients */}
               <div style={{ position:'relative', marginTop:10 }}>
