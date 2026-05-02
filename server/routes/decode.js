@@ -51,4 +51,24 @@ router.post('/', async (req, res) => {
   }
 });
 
+const FOLLOWUP_PROMPT = `You are Decode assistant. The user has already decoded a document and has a follow-up question. Answer in simple plain language in their chosen language. Be warm, clear and concise. Max 3 sentences.`;
+
+router.post('/followup', async (req, res) => {
+  try {
+    const { question, originalText, language } = req.body;
+    const response = await client.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        { role: 'system', content: FOLLOWUP_PROMPT },
+        { role: 'user', content: `Document content: ${originalText}\n\nQuestion: ${question}` },
+      ],
+      max_tokens: 512,
+    });
+    return res.json({ success: true, answer: response.choices[0].message.content });
+  } catch (err) {
+    console.error('Followup error:', err);
+    return res.status(500).json({ success: false, error: 'Could not answer. Please try again.' });
+  }
+});
+
 module.exports = router;

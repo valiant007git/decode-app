@@ -1,0 +1,69 @@
+Add these 3 features to the Decode app:
+
+FEATURE 1 — Follow-up questions (chat mode after decode)
+After the 3 result cards appear, add a chat section below:
+- Label: "Have a question about this document?"
+- A text input with placeholder "Ask anything... e.g. Is this serious? What if I ignore this?"
+- A "Ask" button in #534AB7
+- On click: send a POST to /api/decode/followup with:
+  { question, originalText, language }
+- Show the AI answer below in a simple chat bubble style
+- User can ask multiple follow-up questions
+- Each answer appears below the previous one
+
+In server/routes/decode.js add a new route POST /followup:
+- Use Groq llama-3.1-8b-instant
+- System prompt: "You are Decode assistant. The user has already decoded a document and has a follow-up question. Answer in simple plain language in their chosen language. Be warm, clear and concise. Max 3 sentences."
+- User message: "Document content: {originalText}\n\nQuestion: {question}"
+- Return { success: true, answer: "..." }
+
+FEATURE 2 — Read aloud button
+On the result page, add a small "🔊 Read aloud" button 
+below the result cards.
+On click: use browser's built-in Web Speech API 
+(window.speechSynthesis) to read out all 3 result 
+sections in the user's chosen language.
+- If language is Hindi: set utterance.lang = 'hi-IN'
+- If Bengali: set utterance.lang = 'bn-IN'  
+- If English: set utterance.lang = 'en-IN'
+Button text changes to "⏹ Stop" while reading.
+No external API needed — browser handles this natively.
+
+FEATURE 3 — PWA (install on phone home screen)
+Make Decode installable as a PWA:
+
+Create client/public/manifest.json:
+{
+  "name": "Decode",
+  "short_name": "Decode",
+  "description": "Understand any document in plain language",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#534AB7",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+
+In client/index.html add in <head>:
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#534AB7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Decode">
+
+Create client/public/sw.js (service worker):
+self.addEventListener('fetch', function(event) {
+  event.respondWith(fetch(event.request));
+});
+
+In client/src/main.jsx add at bottom:
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+
+Restart everything and confirm all 3 features are working.

@@ -230,6 +230,10 @@ export default function App() {
   const [limitReached, setLimitReached] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [isPaid, setIsPaid] = useState(getIsPaid());
+  const [followups, setFollowups] = useState([]);
+  const [followupQ, setFollowupQ] = useState('');
+  const [followupLoading, setFollowupLoading] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -300,6 +304,49 @@ export default function App() {
     setIsPaid(paid);
     setLimitReached(getUsageCount() >= DAILY_LIMIT && !paid);
     setShowUpgrade(false);
+    setFollowups([]); setFollowupQ('');
+    window.speechSynthesis && window.speechSynthesis.cancel();
+    setSpeaking(false);
+  }
+
+  async function handleFollowup() {
+    if (!followupQ.trim()) return;
+    const q = followupQ.trim();
+    setFollowupQ('');
+    setFollowupLoading(true);
+    try {
+      const res = await fetch('/api/decode/followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, originalText: text, language }),
+      });
+      const data = await res.json();
+      setFollowups(prev => [...prev, { q, a: data.success ? data.answer : data.error }]);
+    } catch {
+      setFollowups(prev => [...prev, { q, a: 'Could not get an answer. Please try again.' }]);
+    }
+    setFollowupLoading(false);
+  }
+
+  function handleReadAloud() {
+    if (!window.speechSynthesis) return;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const langMap = { Hindi: 'hi-IN', Bengali: 'bn-IN', English: 'en-IN' };
+    const fullText = [
+      `What is this? ${result.what_is_this}`,
+      `What it means for you. ${result.what_it_means_for_you}`,
+      `What to do next. ${(result.what_to_do_next || []).join('. ')}`,
+    ].join('. ');
+    const utterance = new SpeechSynthesisUtterance(fullText);
+    utterance.lang = langMap[language] || 'en-IN';
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
   }
 
   function handleUpgradeSuccess() {
@@ -523,19 +570,97 @@ export default function App() {
               </div>
             ))}
 
+            {/* Read aloud */}
+            <button
+              onClick={handleReadAloud}
+              style={{
+                width: '100%', height: 44, backgroundColor: '#fff', color: ACCENT,
+                border: `2px solid ${ACCENT}`, borderRadius: 12, fontSize: 15, fontWeight: 600,
+                cursor: 'pointer', marginBottom: 12, animation: 'fadeInUp 0.35s ease 200ms both',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f0eeff'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff'; }}
+            >
+              {speaking ? '⏹ Stop reading' : '🔊 Read aloud'}
+            </button>
+
+            {/* WhatsApp share */}
             <button onClick={handleWhatsAppShare} style={{
               width: '100%', height: 48, backgroundColor: '#25D366', color: '#fff',
               border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
-              cursor: 'pointer', marginBottom: 12, animation: 'fadeInUp 0.35s ease 240ms both',
+              cursor: 'pointer', marginBottom: 12, animation: 'fadeInUp 0.35s ease 280ms both',
             }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1fb855'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = '#25D366'}
             >📤 Share on WhatsApp</button>
 
+            {/* Follow-up chat */}
+            <div style={{
+              backgroundColor: '#fff', borderRadius: 16, padding: '20px 22px', marginBottom: 14,
+              boxShadow: '0 2px 16px rgba(83,74,183,0.07)',
+              animation: 'fadeInUp 0.35s ease 340ms both',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#444', marginBottom: 14 }}>
+                Have a question about this document?
+              </div>
+
+              {/* Previous Q&As */}
+              {followups.map((item, i) => (
+                <div key={i} style={{ marginBottom: 14 }}>
+                  <div style={{
+                    backgroundColor: '#f0eeff', borderRadius: '12px 12px 4px 12px',
+                    padding: '10px 14px', fontSize: 14, color: ACCENT, fontWeight: 500,
+                    marginBottom: 8, alignSelf: 'flex-end',
+                  }}>
+                    {item.q}
+                  </div>
+                  <div style={{
+                    backgroundColor: '#f7f6fb', borderRadius: '4px 12px 12px 12px',
+                    padding: '10px 14px', fontSize: 14, color: '#1a1a2e', lineHeight: 1.6,
+                  }}>
+                    {item.a}
+                  </div>
+                </div>
+              ))}
+
+              {followupLoading && (
+                <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12, animation: 'pulse 1.4s ease-in-out infinite' }}>
+                  Thinking...
+                </div>
+              )}
+
+              {/* Input row */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={followupQ}
+                  onChange={e => setFollowupQ(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !followupLoading && handleFollowup()}
+                  placeholder="Ask anything... e.g. Is this serious?"
+                  style={{
+                    flex: 1, padding: '10px 14px', borderRadius: 10,
+                    border: '2px solid #e8e6f0', fontSize: 14, color: '#1a1a2e',
+                    outline: 'none', fontFamily: 'inherit',
+                  }}
+                  onFocus={e => e.target.style.borderColor = ACCENT}
+                  onBlur={e => e.target.style.borderColor = '#e8e6f0'}
+                />
+                <button
+                  onClick={handleFollowup}
+                  disabled={followupLoading || !followupQ.trim()}
+                  style={{
+                    padding: '10px 18px', backgroundColor: followupLoading ? '#9992d4' : ACCENT,
+                    color: '#fff', border: 'none', borderRadius: 10,
+                    fontSize: 14, fontWeight: 700, cursor: followupLoading ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap', flexShrink: 0,
+                  }}
+                >Ask</button>
+              </div>
+            </div>
+
             <button onClick={handleReset} style={{
               width: '100%', padding: '15px 0', backgroundColor: ACCENT, color: '#fff',
               border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
-              cursor: 'pointer', animation: 'fadeInUp 0.35s ease 300ms both',
+              cursor: 'pointer', animation: 'fadeInUp 0.35s ease 400ms both',
             }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = ACCENT_DARK}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = ACCENT}
