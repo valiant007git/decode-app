@@ -1,8 +1,8 @@
 const express = require('express');
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const router = express.Router();
-const client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_PROMPT = `You are Decode — a calm, warm AI that helps everyday people in India understand confusing documents. You MUST respond with ONLY valid JSON, no markdown, no extra text. Format: { "what_is_this": "2-3 sentences on what kind of document this is", "what_it_means_for_you": "the single most important thing the user needs to know in plain simple language", "what_to_do_next": ["action step 1", "action step 2", "action step 3"] }. Respond in the user's chosen language. Use simple, everyday words. Avoid jargon. Be warm and reassuring.`;
 
@@ -17,45 +17,35 @@ router.post('/', async (req, res) => {
       return res.status(402).json({ error: 'LIMIT_REACHED' });
     }
 
-    let messages;
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: SYSTEM_PROMPT,
+    });
+
+    let parts;
 
     if (imageBase64) {
-      messages = [
+      parts = [
         {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/jpeg',
-                data: imageBase64,
-              },
-            },
-            {
-              type: 'text',
-              text: `Document type: ${docType}. Explain in ${language}.`,
-            },
-          ],
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: imageBase64,
+          },
+        },
+        {
+          text: `Document type: ${docType}. Explain in ${language}.`,
         },
       ];
     } else {
-      messages = [
+      parts = [
         {
-          role: 'user',
-          content: `Document type: ${docType}. Explain in ${language}.\n\nContent:\n${text}`,
+          text: `Document type: ${docType}. Explain in ${language}.\n\nContent:\n${text}`,
         },
       ];
     }
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages,
-    });
-
-    const rawText = response.content[0].text;
+    const result = await model.generateContent(parts);
+    const rawText = result.response.text();
     const parsed = JSON.parse(rawText);
 
     return res.json({
